@@ -1,0 +1,121 @@
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local SimpleGSButton = Instance.new("TextButton")
+local IYFEButton = Instance.new("TextButton")
+local CloseButton = Instance.new("TextButton")
+local UICorner = Instance.new("UICorner")  -- For curved corners
+local OpenButton = Instance.new("TextButton")
+
+-- Set the ScreenGui parent to the player's PlayerGui
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+-- Frame settings
+Frame.Parent = ScreenGui
+Frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+Frame.Position = UDim2.new(0.3, 0, 0.3, 0)
+Frame.Size = UDim2.new(0.4, 0, 0.4, 0)
+Frame.Active = true  -- Makes the frame draggable
+Frame.Draggable = true  -- Enables dragging
+Frame.Visible = false  -- Initially hidden
+
+-- Adding UICorner to the Frame for curved corners
+UICorner.Parent = Frame
+UICorner.CornerRadius = UDim.new(0, 12)  -- Adjust the corner radius as desired
+
+-- FPS Label
+local fpsLabel = Instance.new("TextLabel", ScreenGui)
+fpsLabel.Size = UDim2.new(0, 100, 0, 25)
+fpsLabel.Position = UDim2.new(0, 150, 0, -28)  -- Adjusted position for upper right corner
+fpsLabel.BackgroundColor3 = Color3.new(0, 0, 0)
+fpsLabel.BackgroundTransparency = 0.5
+fpsLabel.TextColor3 = Color3.new(1, 1, 1)
+fpsLabel.TextScaled = true
+fpsLabel.Text = "FPS: 0"
+
+local lastTime = tick()
+local frameCount = 0
+
+-- Update FPS
+game:GetService("RunService").RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local currentTime = tick()
+
+    if currentTime - lastTime >= 1 then
+        fpsLabel.Text = "FPS: " .. tostring(frameCount)
+        lastTime = currentTime
+        frameCount = 0
+    end
+end)
+
+-- Simple Graphics Button settings
+SimpleGSButton.Parent = Frame
+SimpleGSButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+SimpleGSButton.Size = UDim2.new(0.4, 0, 0.2, 0)
+SimpleGSButton.Position = UDim2.new(0.05, 0, 0.1, 0)
+SimpleGSButton.Font = Enum.Font.SourceSansBold
+SimpleGSButton.Text = "Simple Graphics Settings"
+SimpleGSButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+SimpleGSButton.TextScaled = true
+
+-- Infinite Yield FE v6 Button settings
+IYFEButton.Parent = Frame
+IYFEButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+IYFEButton.Size = UDim2.new(0.4, 0, 0.2, 0)
+IYFEButton.Position = UDim2.new(0.55, 0, 0.1, 0)
+IYFEButton.Font = Enum.Font.SourceSansBold
+IYFEButton.Text = "Infinite Yield FE v6"
+IYFEButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+IYFEButton.TextScaled = true
+
+-- Close Button (X) settings
+CloseButton.Parent = Frame
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.Size = UDim2.new(0.1, 0, 0.1, 0)
+CloseButton.Position = UDim2.new(0.9, 0, 0, 0)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextScaled = true
+
+-- Open Button settings (initially visible)
+OpenButton.Parent = ScreenGui
+OpenButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+OpenButton.Size = UDim2.new(0, 75, 0, 25)
+OpenButton.Position = UDim2.new(0, 20, 0, 300)
+OpenButton.Font = Enum.Font.SourceSansBold
+OpenButton.Text = "Open"
+OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenButton.TextScaled = true
+
+-- Function to collapse the Frame and show the Open button
+CloseButton.MouseButton1Click:Connect(function()
+    Frame.Visible = false
+    OpenButton.Visible = true
+end)
+
+-- Function to expand the Frame and hide the Open button
+OpenButton.MouseButton1Click:Connect(function()
+    Frame.Visible = true
+    OpenButton.Visible = false
+end)
+
+-- Function to execute the script when Simple Graphics Settings is clicked
+SimpleGSButton.MouseButton1Click:Connect(function()
+    print("Simple Graphics Execute")
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/MavYT29/RBLSCRIPTS/main/Graphics%20Settings.txt'))()
+    print("Credits: https://megagamesdl.blogspot.com/")
+end)
+
+-- Function to execute the script when Infinite Yield FE v6 is clicked
+IYFEButton.MouseButton1Click:Connect(function()
+    print("Infinite Yield FE v6 Execute")
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
+    print("Credits: https://megagamesdl.blogspot.com/")
+end)
+
+-- Destroy ScreenGui when the character is reset
+local player = game.Players.LocalPlayer
+player.CharacterAdded:Connect(function()
+    ScreenGui:Destroy()
+    print("UI Scripts Success Destroy")
+end)
