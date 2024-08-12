@@ -125,14 +125,22 @@ createButton("Toggle Saturation", UDim2.new(0, 0, 0, 290), function()
     toggleEffect("Saturation", "ColorCorrectionEffect", {Saturation = 1})
 end)
 
--- Function to teleport to a player by name or display name
+-- Function to teleport to a player by partial name or display name
 local function teleportToPlayer(playerName)
-    local targetPlayer = game.Players:FindFirstChild(playerName)
-    
-    -- Check if the player is not found by username, then check by display name
+    local targetPlayer = nil
+
+    -- Check for username matches
+    for _, player in ipairs(game.Players:GetPlayers()) do
+        if player.Name:lower():find(playerName:lower(), 1, true) then
+            targetPlayer = player
+            break
+        end
+    end
+
+    -- If no match found by username, check for display name matches
     if not targetPlayer then
         for _, player in ipairs(game.Players:GetPlayers()) do
-            if player.DisplayName:lower() == playerName:lower() then
+            if player.DisplayName:lower():find(playerName:lower(), 1, true) then
                 targetPlayer = player
                 break
             end
@@ -151,7 +159,7 @@ end
 local playerNameInput = Instance.new("TextBox", mainFrame)
 playerNameInput.Size = UDim2.new(1, 0, 0, 40)
 playerNameInput.Position = UDim2.new(0, 0, 0, 340)
-playerNameInput.PlaceholderText = "Enter Player Name or Display Name"
+playerNameInput.PlaceholderText = "Enter Partial Player Name or Display Name"
 playerNameInput.BackgroundColor3 = Color3.new(1, 1, 1)
 
 -- Create teleport button
