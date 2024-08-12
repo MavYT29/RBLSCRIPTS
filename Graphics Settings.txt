@@ -128,10 +128,10 @@ end)
 -- Function to teleport to a player by name or display name (partial match, case insensitive)
 local function teleportToPlayer(playerName)
     local targetPlayer = nil
-    
+
     -- Check by username for partial match
     for _, player in ipairs(game.Players:GetPlayers()) do
-        if player.Name:lower():sub(1, #playerName) == playerName:lower() then
+        if player.Name:lower():find(playerName:lower(), 1, true) then
             targetPlayer = player
             break
         end
@@ -140,7 +140,7 @@ local function teleportToPlayer(playerName)
     -- If not found by username, check by display name for partial match
     if not targetPlayer then
         for _, player in ipairs(game.Players:GetPlayers()) do
-            if player.DisplayName:lower():sub(1, #playerName) == playerName:lower() then
+            if player.DisplayName:lower():find(playerName:lower(), 1, true) then
                 targetPlayer = player
                 break
             end
