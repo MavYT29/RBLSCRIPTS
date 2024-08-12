@@ -1,0 +1,239 @@
+local Player = game.Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local ScreenGui = Instance.new("ScreenGui", PlayerGui)
+
+-- Main Frame
+local mainFrame = Instance.new("Frame", ScreenGui)
+mainFrame.Size = UDim2.new(0, 300, 0, 500)  -- Adjusted size back
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -250)
+mainFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.5
+mainFrame.BorderSizePixel = 0
+
+-- Title Label
+local titleLabel = Instance.new("TextLabel", mainFrame)
+titleLabel.Size = UDim2.new(1, 0, 0, 50)
+titleLabel.Text = "Simple Graphics Scripts"
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.BackgroundTransparency = 1
+titleLabel.TextScaled = true
+
+-- Credits Label
+local creditsLabel = Instance.new("TextLabel", mainFrame)
+creditsLabel.Size = UDim2.new(1, 0, 0, 30)
+creditsLabel.Position = UDim2.new(0, 0, 0, 50)
+creditsLabel.Text = "Credits: https://megagamesdl.blogspot.com/"
+creditsLabel.TextColor3 = Color3.new(1, 1, 1)
+creditsLabel.BackgroundTransparency = 1
+creditsLabel.TextScaled = true
+
+-- FPS Label
+local fpsLabel = Instance.new("TextLabel", ScreenGui)
+fpsLabel.Size = UDim2.new(0, 75, 0, 25)
+fpsLabel.Position = UDim2.new(0, 100, 0, -28)  -- Adjusted position for upper right corner
+fpsLabel.BackgroundColor3 = Color3.new(0, 0, 0)
+fpsLabel.BackgroundTransparency = 0.5
+fpsLabel.TextColor3 = Color3.new(1, 1, 1)
+fpsLabel.TextScaled = true
+fpsLabel.Text = "FPS: 0"
+
+local lastTime = tick()
+local frameCount = 0
+
+-- Update FPS
+game:GetService("RunService").RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local currentTime = tick()
+
+    if currentTime - lastTime >= 1 then
+        fpsLabel.Text = "FPS: " .. tostring(frameCount)
+        lastTime = currentTime
+        frameCount = 0
+    end
+end)
+
+-- Function to create buttons with highlighting
+local function createButton(name, position, callback)
+    local button = Instance.new("TextButton", mainFrame)
+    button.Size = UDim2.new(1, 0, 0, 40)
+    button.Position = position
+    button.Text = name
+    button.BackgroundColor3 = Color3.new(0.5, 0.5, 0.5)
+
+    button.MouseButton1Click:Connect(function()
+        -- Highlight effect
+        button.BackgroundColor3 = Color3.new(1, 1, 1)
+        wait(0.1)  -- Adjust highlight duration
+        button.BackgroundColor3 = Color3.new(0.5, 0.5, 0.5)
+        callback()
+    end)
+
+    return button
+end
+
+-- Effect states
+local effects = {
+    Blur = {enabled = false, effect = nil},
+    Bloom = {enabled = false, effect = nil},
+    SunRays = {enabled = false, effect = nil},
+    Atmosphere = {enabled = false, effect = nil},
+    Saturation = {enabled = false, effect = nil},
+    AFK = false,
+    NoClip = false,  -- Add NoClip state
+}
+
+-- Function to toggle effects
+local function toggleEffect(effectName, effectClass, properties)
+    local effectData = effects[effectName]
+    effectData.enabled = not effectData.enabled
+
+    if effectData.enabled then
+        effectData.effect = Instance.new(effectClass, game.Lighting)
+        if properties then
+            for prop, value in pairs(properties) do
+                effectData.effect[prop] = value
+            end
+        end
+        print(effectName .. " enabled.")
+    else
+        if effectData.effect then
+            effectData.effect:Destroy()
+            effectData.effect = nil
+        end
+        print(effectName .. " disabled.")
+    end
+end
+
+-- Create buttons for each effect
+createButton("Toggle Blur", UDim2.new(0, 0, 0, 90), function()
+    toggleEffect("Blur", "BlurEffect", {Size = 10})
+end)
+
+createButton("Toggle Bloom", UDim2.new(0, 0, 0, 140), function()
+    toggleEffect("Bloom", "BloomEffect", {Intensity = 1})
+end)
+
+createButton("Toggle Sun Rays", UDim2.new(0, 0, 0, 190), function()
+    toggleEffect("SunRays", "SunRaysEffect", {Intensity = 1, Spread = 5})
+end)
+
+createButton("Toggle Atmosphere", UDim2.new(0, 0, 0, 240), function()
+    toggleEffect("Atmosphere", "Atmosphere", {Color = Color3.new(0.5, 0.5, 0.5), Density = 0.2})
+end)
+
+createButton("Toggle Saturation", UDim2.new(0, 0, 0, 290), function()
+    toggleEffect("Saturation", "ColorCorrectionEffect", {Saturation = 1})
+end)
+
+-- Function to teleport to a player by name or display name
+local function teleportToPlayer(playerName)
+    local targetPlayer = game.Players:FindFirstChild(playerName)
+    
+    -- Check if the player is not found by username, then check by display name
+    if not targetPlayer then
+        for _, player in ipairs(game.Players:GetPlayers()) do
+            if player.DisplayName:lower() == playerName:lower() then
+                targetPlayer = player
+                break
+            end
+        end
+    end
+
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        Player.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+        print("Teleported to " .. targetPlayer.Name)
+    else
+        print("Player not found or player is not available.")
+    end
+end
+
+-- Create input field for player name
+local playerNameInput = Instance.new("TextBox", mainFrame)
+playerNameInput.Size = UDim2.new(1, 0, 0, 40)
+playerNameInput.Position = UDim2.new(0, 0, 0, 340)
+playerNameInput.PlaceholderText = "Enter Player Name or Display Name"
+playerNameInput.BackgroundColor3 = Color3.new(1, 1, 1)
+
+-- Create teleport button
+createButton("Teleport to Player", UDim2.new(0, 0, 0, 390), function()
+    local playerName = playerNameInput.Text
+    if playerName and playerName ~= "" then
+        teleportToPlayer(playerName)
+    else
+        print("Please enter a valid player name.")
+    end
+end)
+
+-- Function to toggle No Clip
+local function toggleNoClip()
+    effects.NoClip = not effects.NoClip
+    local character = Player.Character
+
+    if effects.NoClip then
+        for _, part in pairs(character:GetChildren()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+        print("No Clip enabled.")
+    else
+        for _, part in pairs(character:GetChildren()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+        print("No Clip disabled.")
+    end
+end
+
+-- Create No Clip button
+createButton("Toggle No Clip", UDim2.new(0, 0, 0, 440), toggleNoClip)
+
+-- Function to disable all effects
+local function disableAllEffects()
+    for _, effectData in pairs(effects) do
+        if effectData.effect then
+            effectData.effect:Destroy()
+            effectData.effect = nil
+        end
+        effectData.enabled = false
+    end
+    effects.NoClip = false  -- Ensure NoClip is disabled
+    toggleNoClip()  -- Disable NoClip
+end
+
+-- Listen for Home key press to hide/show the GUI
+local UserInputService = game:GetService("UserInputService")
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if input.KeyCode == Enum.KeyCode.Home and not gameProcessedEvent then
+        mainFrame.Visible = not mainFrame.Visible
+    elseif input.KeyCode == Enum.KeyCode.End and not gameProcessedEvent then
+        disableAllEffects()
+    end
+end)
+
+-- Function to enable dragging of the menu
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+mainFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
