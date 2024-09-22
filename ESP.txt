@@ -2,7 +2,6 @@ _G.FriendColor = Color3.fromRGB(0, 0, 255)
 _G.EnemyColor = Color3.fromRGB(255, 0, 0)
 _G.UseTeamColor = true
 
---------------------------------------------------------------------
 local Holder = Instance.new("Folder", game.CoreGui)
 Holder.Name = "ESP"
 
@@ -21,6 +20,7 @@ NameTag.Enabled = false
 NameTag.Size = UDim2.new(0, 200, 0, 50)
 NameTag.AlwaysOnTop = true
 NameTag.StudsOffset = Vector3.new(0, 1.8, 0)
+
 local Tag = Instance.new("TextLabel", NameTag)
 Tag.Name = "Tag"
 Tag.BackgroundTransparency = 1
@@ -34,15 +34,28 @@ Tag.Text = "nil"
 Tag.Font = Enum.Font.SourceSansBold
 Tag.TextScaled = false
 
+local HealthBar = Instance.new("BillboardGui")
+HealthBar.Name = "HealthBar"
+HealthBar.Size = UDim2.new(0, 100, 0, 10)
+HealthBar.AlwaysOnTop = true
+HealthBar.StudsOffset = Vector3.new(0, 0, 0)
+
+local HealthFrame = Instance.new("Frame", HealthBar)
+HealthFrame.Size = UDim2.new(1, 0, 1, 0)
+HealthFrame.BackgroundColor3 = Color3.new(0, 1, 0) -- Green for health
+HealthFrame.BorderSizePixel = 0
+
 local LoadCharacter = function(v)
 	repeat wait() until v.Character ~= nil
 	v.Character:WaitForChild("Humanoid")
 	local vHolder = Holder:FindFirstChild(v.Name)
 	vHolder:ClearAllChildren()
+
 	local b = Box:Clone()
 	b.Name = v.Name .. "Box"
 	b.Adornee = v.Character
 	b.Parent = vHolder
+
 	local t = NameTag:Clone()
 	t.Name = v.Name .. "NameTag"
 	t.Enabled = true
@@ -54,16 +67,26 @@ local LoadCharacter = function(v)
 	t.Tag.Text = v.Name
 	b.Color3 = Color3.new(v.TeamColor.r, v.TeamColor.g, v.TeamColor.b)
 	t.Tag.TextColor3 = Color3.new(v.TeamColor.r, v.TeamColor.g, v.TeamColor.b)
+
+	local hBar = HealthBar:Clone()
+	hBar.Parent = vHolder
+	hBar.Adornee = v.Character:WaitForChild("Head", 5)
+	hBar.Enabled = true
+
 	local Update
 	local UpdateNameTag = function()
 		if not pcall(function()
 			v.Character.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-			local maxh = math.floor(v.Character.Humanoid.MaxHealth)
-			local h = math.floor(v.Character.Humanoid.Health)
+			local maxHealth = math.floor(v.Character.Humanoid.MaxHealth)
+			local health = math.floor(v.Character.Humanoid.Health)
+
+			-- Update health bar size
+			HealthFrame.Size = UDim2.new(health / maxHealth, 0, 1, 0)
 		end) then
 			Update:Disconnect()
 		end
 	end
+
 	UpdateNameTag()
 	Update = v.Character.Humanoid.Changed:Connect(UpdateNameTag)
 end
