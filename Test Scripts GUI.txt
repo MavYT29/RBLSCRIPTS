@@ -415,25 +415,6 @@ AimbotSection:AddToggle({
     end
 })
 
--- Add Checkbox Toggle
-AimbotSection:AddToggle({
-    Name = "Enable Head Modification",
-    Default = false,
-    Callback = toggleHeadModification
-})
-
--- Add Slider for Head Size
-AimbotSection:AddSlider({
-    Name = "Head Size",
-    Min = 0,
-    Max = 20,  -- Maximum value for head size
-    Default = _G.HeadSize,
-    Color = Color3.fromRGB(255, 255, 255),
-    Increment = 1,
-    ValueName = "Size",
-    Callback = setHeadSize  -- Callback function to update head size
-})
-
 ESPSection:AddButton({
     Name = "ESP & HealthBar",
     Callback = function()
@@ -505,6 +486,25 @@ PlayerSection:AddSlider({
             end
         end
     end    
+})
+
+-- Add Checkbox Toggle
+PlayerSection:AddToggle({
+    Name = "Enable Head Modification",
+    Default = false,
+    Callback = toggleHeadModification
+})
+
+-- Add Slider for Head Size
+PlayerSection:AddSlider({
+    Name = "Head Size",
+    Min = 0,
+    Max = 50,  -- Maximum value for head size
+    Default = _G.HeadSize,
+    Color = Color3.fromRGB(255, 255, 255),
+    Increment = 1,
+    ValueName = "Size",
+    Callback = setHeadSize  -- Callback function to update head size
 })
 
 PlayerSection:AddButton({
