@@ -1,0 +1,587 @@
+-- Load the Orion Library
+local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/MavYT29/RBLSCRIPTS/refs/heads/main/orionGUI.txt'))()
+
+-- Create the main window
+local Window = OrionLib:MakeWindow({
+    Name = "KENJIE HUB - TEST",
+    HidePremium = false,
+    SaveConfig = true,
+    ConfigFolder = "OrionTest"
+})
+
+-- Notification using OrionLib
+OrionLib:MakeNotification({
+    Name = "KENJIE HUB!",
+    Content = "CounterBlox Scripts by made kenjiePH",
+    Image = "rbxassetid://4483345998",
+    Time = 5
+})
+
+local AimbotTab = Window:MakeTab({
+    Name = "AIMBOT",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local ESPTab = Window:MakeTab({
+	Name = "ESP",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+	
+})
+
+local TeleportTab = Window:MakeTab({
+    Name = "TELEPORT",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local PlayerTab = Window:MakeTab({
+    Name = "PLAYER",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local MiscTab = Window:MakeTab({
+    Name = "MISC",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local SettingsTab = Window:MakeTab({
+    Name = "SETTINGS",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local AimbotSection = AimbotTab:AddSection({
+    Name = "Aimbot Settings"
+})
+
+local ESPSection = ESPTab:AddSection({
+    Name = "ESP Settings"
+})
+
+local TeleportSection = TeleportTab:AddSection({
+    Name = "Teleport Settings"
+})
+
+local PlayerSection = PlayerTab:AddSection({
+    Name = "Player Settings"
+})
+
+local MiscSection = MiscTab:AddSection({
+    Name = "Misc Settings"
+})
+
+local SettingsSection = SettingsTab:AddSection({
+    Name = "FOV Circle Position"
+})
+
+
+-- Global variables
+local AimPosition = "Head" 
+local AimbotEnabled = false
+local AimlockEnabled = false  -- Changed from SilentAimbotEnabled
+local TeleportEnabled = false
+_G.HeadSize = 5  -- Default head size (set to match the slider's default)
+_G.Disabled = true
+local TeamCheckEnabled = false
+local hasJumped = false
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local Camera = workspace.CurrentCamera
+
+-- FOV setting (in degrees)
+local FOV = 30
+
+-- Smoothness variables
+local Smoothness = 0.1
+local SmoothnessMax = 0.5
+
+-- Teleport delay
+local TeleportDelay = 0
+
+-- Function to create FOV Circle with an outline
+local function createFOVCircle()
+    local screenGui = Instance.new("ScreenGui", Players.LocalPlayer:WaitForChild("PlayerGui"))
+    local fovCircle = Instance.new("Frame", screenGui)
+    fovCircle.Name = "FOVCircle"
+    fovCircle.BackgroundTransparency = 1 -- Make the background fully transparent
+    fovCircle.BorderSizePixel = 0
+    fovCircle.Size = UDim2.new(0, FOV * 2, 0, FOV * 2)
+    fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+    fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0) -- Center the circle
+    fovCircle.Visible = false
+
+    -- Add a UICorner to make the Frame circular
+    local uiCorner = Instance.new("UICorner", fovCircle)
+    uiCorner.CornerRadius = UDim.new(0.5, 0) -- Makes the Frame circular
+
+    -- Add a UIStroke for the outline
+    local uiStroke = Instance.new("UIStroke", fovCircle)
+    uiStroke.Color = Color3.fromRGB(255, 0, 0) -- Default color
+    uiStroke.Thickness = 2 -- Set the thickness of the outline
+
+    return fovCircle, uiStroke
+end
+
+local fovCircle, uiStroke = createFOVCircle()
+
+
+-- Function to toggle Aimbot
+local function toggleAimbot()
+    fovCircle.Visible = AimbotEnabled
+    print(AimbotEnabled and "Aimbot Enabled" or "Aimbot Disabled")
+end
+
+-- Function to toggle 360 Aimlock
+local function toggleAimlock()
+    print(AimlockEnabled and "360 Aimlock Enabled" or "360 Aimlock Disabled")
+end
+
+-- Function to check if the target is visible (not behind walls)
+local function isTargetVisible(target)
+    local ray = Ray.new(Camera.CFrame.Position, (target.Position - Camera.CFrame.Position).unit * 1000)
+    local hitPart, _ = workspace:FindPartOnRay(ray, Players.LocalPlayer.Character, false, true)
+    return hitPart and hitPart:IsDescendantOf(target.Parent)
+end
+
+-- Function to check if a position is within the FOV
+local function isInFOV(targetPosition)
+    local screenPosition, onScreen = Camera:WorldToViewportPoint(targetPosition)
+    if onScreen then
+        local viewportSize = Camera.ViewportSize
+        local center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+        local targetVector = Vector2.new(screenPosition.X, screenPosition.Y)
+        local distanceFromCenter = (targetVector - center).Magnitude
+        local fovRadius = (viewportSize.X / 2) * math.tan(math.rad(FOV / 2))
+        return distanceFromCenter <= fovRadius
+    end
+    return false
+end
+
+-- Function to find the closest visible player for aimbot without team check and with additional safety checks
+local function getClosestVisiblePlayerForAimbot()
+    local localPlayer = Players.LocalPlayer
+    local nearestPlayer = nil
+    local shortestDistance = math.huge
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local head = player.Character:FindFirstChild("Head") -- Safety check for Head
+            if head then
+                local distance = (head.Position - Camera.CFrame.Position).Magnitude
+
+                -- No team check, only distance, visibility, and FOV checks
+                if distance < shortestDistance and isTargetVisible(head) and isInFOV(head.Position) then
+                    shortestDistance = distance
+                    nearestPlayer = player
+                end
+            end
+        end
+    end
+
+    return nearestPlayer
+end
+
+-- Function to apply aimbot with improved aiming smoothness and error checks
+local function applyAimbot()
+    if AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+        local closestPlayer = getClosestVisiblePlayerForAimbot()
+        if closestPlayer and closestPlayer.Character then
+            local targetPosition
+
+            -- Determine target position based on selected aim position with additional safety checks
+            if AimPosition == "Head" and closestPlayer.Character:FindFirstChild("Head") then
+                targetPosition = closestPlayer.Character.Head.Position
+            elseif AimPosition == "Neck" and closestPlayer.Character:FindFirstChild("Neck") then
+                targetPosition = closestPlayer.Character.Neck.Position
+            elseif AimPosition == "Chest" and closestPlayer.Character:FindFirstChild("UpperTorso") then
+                targetPosition = closestPlayer.Character.UpperTorso.Position
+            elseif AimPosition == "Foot" and closestPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                targetPosition = closestPlayer.Character.HumanoidRootPart.Position
+            end
+
+            if targetPosition then
+                local smoothness = SmoothnessMax * Smoothness
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPosition), smoothness)
+            end
+        end
+    end
+end
+
+-- Function to set the aim position with error checks
+local function setAimPosition(position)
+    AimPosition = position
+end
+
+-- Function to apply 360 Aimlock with smooth targeting and aim position selection
+local function applyAimlock()
+    if AimlockEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+        local closestPlayer = getClosestVisiblePlayerForAimbot()
+        if closestPlayer and closestPlayer.Character then
+            local targetPosition
+
+            -- Determine target position based on selected aim position
+            if AimPosition == "Head" and closestPlayer.Character:FindFirstChild("Head") then
+                targetPosition = closestPlayer.Character.Head.Position
+            elseif AimPosition == "Neck" and closestPlayer.Character:FindFirstChild("Neck") then
+                targetPosition = closestPlayer.Character.Neck.Position
+            elseif AimPosition == "Chest" and closestPlayer.Character:FindFirstChild("UpperTorso") then
+                targetPosition = closestPlayer.Character.UpperTorso.Position
+            elseif AimPosition == "Foot" and closestPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                targetPosition = closestPlayer.Character.HumanoidRootPart.Position
+            end
+
+            if targetPosition then
+                local directionToTarget = (targetPosition - Camera.CFrame.Position).unit
+                local cameraPosition = Camera.CFrame.Position
+                local cameraLookAt = cameraPosition + directionToTarget
+
+                -- Smoothly adjust the camera's CFrame to look at the target position
+                Camera.CFrame = CFrame.new(cameraPosition, cameraLookAt)
+            end
+        end
+    end
+end
+
+local function teleportToPlayers()
+    local localPlayer = Players.LocalPlayer
+
+    -- Continuously teleport as long as TeleportEnabled is true
+    while TeleportEnabled do
+        -- Loop through all players
+        for _, player in ipairs(Players:GetPlayers()) do
+            if not TeleportEnabled then
+                break  -- Stop teleporting if TeleportEnabled is turned off
+            end
+
+            -- Check for valid player and character with HumanoidRootPart
+            if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local targetPosition = player.Character.HumanoidRootPart.Position
+
+                -- Ensure local player has a valid HumanoidRootPart before teleporting
+                if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    localPlayer.Character:SetPrimaryPartCFrame(CFrame.new(targetPosition))
+                    print("Teleported to: ", player.Name, " at position: ", targetPosition)
+                else
+                    warn("Local player has no HumanoidRootPart.")
+                end
+
+                -- Teleport delay
+                wait(TeleportDelay)
+            end
+        end
+        -- Prevent locking up the game by adding a short delay before restarting the loop
+        wait(0.1)
+    end
+end
+
+-- Function to update head properties
+local function updateHeadProperties(head)
+    if head then
+        head.Size = Vector3.new(_G.HeadSize, _G.HeadSize, _G.HeadSize)
+        head.Transparency = 1
+        head.BrickColor = BrickColor.new("Red")
+        head.Material = Enum.Material.Neon
+        head.CanCollide = false
+        head.Massless = true
+    end
+end
+
+-- Toggle function to enable or disable head modifications
+local function toggleHeadModification(value)
+    _G.Disabled = not value  -- Invert the state based on the checkbox value
+end
+
+-- Slider function to adjust head size
+local function setHeadSize(value)
+    _G.HeadSize = value  -- Update the head size variable
+end
+
+-- Connect to RenderStepped to update head properties continuously
+game:GetService('RunService').RenderStepped:Connect(function()
+    if not _G.Disabled then  -- Check if modifications are enabled
+        for _, player in ipairs(game:GetService('Players'):GetPlayers()) do
+            if player.Name ~= game:GetService('Players').LocalPlayer.Name then
+                pcall(function()
+                    local character = player.Character
+                    if character then
+                        local head = character:FindFirstChild("Head")
+                        updateHeadProperties(head)  -- Update head properties
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+-- Function to remove hitboxes when disabled
+local function removeHitboxes()
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v.Name == "soldier_model" and v:IsA("Model") and not v:FindFirstChild("friendly_marker") then
+            for _, bp in pairs(workspace:GetChildren()) do
+                if bp:IsA("BasePart") then
+                    bp.Transparency = 0  -- Reset transparency to normal
+                    bp.Size = Vector3.new(1, 1, 1)  -- Reset the size to default (adjust if necessary)
+                    print("Removed hitbox from: ", bp.Name)
+                end
+            end
+        end
+    end
+end
+
+-- Aimbot Tab Toggles
+AimbotSection:AddToggle({
+    Name = "Enable Aimbot",
+    Default = false, -- Not automatically on
+    Callback = function(Value)
+        AimbotEnabled = Value
+        toggleAimbot()
+    end
+})
+
+-- Dropdown for selecting aim position
+AimbotSection:AddDropdown({
+    Name = "Aim Position",
+    Default = "Head",  -- Default value
+    Options = {"Head", "Neck", "Chest", "Foot"},  -- Available options
+    Callback = function(selected)
+        setAimPosition(selected)  -- Update the global aim position variable
+        print("Aim position set to: " .. selected)
+    end    
+})
+
+AimbotSection:AddToggle({
+    Name = "Enable 360 Aimlock",
+    Default = false, -- Not automatically on
+    Callback = function(Value)
+        AimlockEnabled = Value
+        toggleAimlock()
+    end
+})
+
+AimbotSection:AddSlider({
+    Name = "Aimbot FOV",
+    Min = 10,
+    Max = 100,
+    Default = FOV,
+    Increment = 1,
+    Callback = function(Value)
+        FOV = Value
+        fovCircle.Size = UDim2.new(0, FOV * 2, 0, FOV * 2)
+    end
+})
+
+AimbotSection:AddSlider({
+    Name = "Aimbot Smoothness",
+    Min = 0,
+    Max = 1,
+    Default = Smoothness,
+    Increment = 0.01,
+    Callback = function(Value)
+        Smoothness = Value
+    end
+})
+
+AimbotSection:AddSlider({
+    Name = "Smoothness Max",
+    Min = 0,
+    Max = 1,
+    Default = SmoothnessMax,
+    Increment = 0.01,
+    Callback = function(Value)
+        SmoothnessMax = Value
+    end
+})
+
+AimbotSection:AddColorpicker({
+    Name = "FOV Colorpicker",
+    Default = Color3.fromRGB(255, 0, 0),
+    Callback = function(Value)
+        uiStroke.Color = Value -- Change the UIStroke color based on the selected color
+        print("FOV Circle color changed to: " .. tostring(Value))
+    end	  	
+})
+
+AimbotSection:AddToggle({
+    Name = "Enable Team Check",
+    Default = false,
+    Callback = function(Value)
+        TeamCheckEnabled = Value
+    end
+})
+
+-- Add Checkbox Toggle
+AimbotSection:AddToggle({
+    Name = "Enable Head Modification",
+    Default = false,
+    Callback = toggleHeadModification
+})
+
+-- Add Slider for Head Size
+AimbotSection:AddSlider({
+    Name = "Head Size",
+    Min = 0,
+    Max = 20,  -- Maximum value for head size
+    Default = _G.HeadSize,
+    Color = Color3.fromRGB(255, 255, 255),
+    Increment = 1,
+    ValueName = "Size",
+    Callback = setHeadSize  -- Callback function to update head size
+})
+
+ESPSection:AddButton({
+    Name = "ESP & HealthBar",
+    Callback = function()
+        local espSource = game:HttpGet('https://raw.githubusercontent.com/MavYT29/RBLSCRIPTS/refs/heads/main/ESP.txt')
+        local espScript = loadstring(espSource)
+        
+        if espScript then
+            espScript() -- Call the loaded script
+        else
+            print("Failed to load ESP script.")
+        end
+    end    
+})
+
+-- Teleport Tab Toggles
+TeleportSection:AddToggle({
+    Name = "Enable Teleport",
+    Default = false,
+    Callback = function(Value)
+        TeleportEnabled = Value
+        if TeleportEnabled then
+            teleportToPlayers()
+        end
+    end
+})
+
+TeleportSection:AddBind({
+    Name = "Teleport Key Bind",
+    Default = Enum.KeyCode.E,  -- Default key to enable/disable teleport
+    Hold = false,
+    Callback = function()
+        TeleportEnabled = not TeleportEnabled  -- Toggle teleportation on key press
+        if TeleportEnabled then
+            print("Teleport Enabled")
+            teleportToPlayers()
+        else
+            print("Teleport Disabled")
+        end
+    end
+})
+
+TeleportSection:AddSlider({
+    Name = "Teleport Delay",
+    Min = 0,
+    Max = 10,
+    Default = TeleportDelay,
+    Increment = 1,
+    Callback = function(Value)
+        TeleportDelay = Value
+    end
+})
+
+-- Slider for HipHeight
+PlayerSection:AddSlider({
+    Name = "Hip Height",
+    Min = 2,
+    Max = 100,
+    Default = 2, -- Default HipHeight value
+    Color = Color3.fromRGB(255, 255, 255),
+    Increment = 0.1,
+    ValueName = "HipHeight",
+    Callback = function(Value)
+        local player = game.Players.LocalPlayer
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.HipHeight = Value
+                print("Hip Height set to: " .. Value)
+            end
+        end
+    end    
+})
+
+PlayerSection:AddButton({
+    Name = "Bunnyhop (hold space to bunnyhop)",
+    Callback = function()
+        -- Detect when the spacebar is pressed and held
+        UserInputService.InputBegan:Connect(function(input)
+            if input.KeyCode == Enum.KeyCode.Space then
+                holdingSpace = true
+            end
+        end)
+
+        -- Detect when the spacebar is released
+        UserInputService.InputEnded:Connect(function(input)
+            if input.KeyCode == Enum.KeyCode.Space then
+                holdingSpace = false
+            end
+        end)
+
+        -- Bunnyhop loop
+        while task.wait(0.05) do
+            if holdingSpace and game.Players.LocalPlayer.Character then
+                game.Players.LocalPlayer.Character.Humanoid.Jump = true
+            end
+        end
+    end    
+})
+
+-- Slider for X Position
+SettingsTab:AddSlider({
+    Name = "X Position",
+    Min = -500,
+    Max = 500,
+    Default = 0,
+    Color = Color3.fromRGB(255, 255, 255),
+    Increment = 1,
+    ValueName = "X",
+    Callback = function(Value)
+        fovCircle.Position = UDim2.new(0.5, Value, fovCircle.Position.Y.Offset, fovCircle.Position.Y.Scale)
+    end    
+})
+
+-- Slider for Y Position
+SettingsTab:AddSlider({
+    Name = "Y Position",
+    Min = -500,
+    Max = 500,
+    Default = -17.5,
+    Color = Color3.fromRGB(255, 255, 255),
+    Increment = 1,
+    ValueName = "Y",
+    Callback = function(Value)
+        fovCircle.Position = UDim2.new(fovCircle.Position.X.Scale, fovCircle.Position.X.Offset, 0.5, Value)
+    end    
+})
+
+SettingsTab:AddButton({
+    Name = "Unload Orion",
+    Callback = function()
+        local orionGui = CoreGui:FindFirstChild("Orion")
+        if orionGui then
+            orionGui:Destroy()
+            print("Orion CoreGUI unloaded.")
+        else
+            print("Orion CoreGUI not found.")
+        end
+    end    
+})
+
+
+-- Connection for aimbot and aimlock
+RunService.RenderStepped:Connect(function()
+    if AimbotEnabled then
+        applyAimbot()
+    end
+
+    if AimlockEnabled then
+        applyAimlock()
+    end
+end)
