@@ -3,7 +3,7 @@ local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/MavY
 
 -- Create the main window
 local Window = OrionLib:MakeWindow({
-    Name = "KENJIE HUB - TEST",
+    Name = "KENJIE HUB - WARZONE[FPS]",
     HidePremium = false,
     SaveConfig = true,
     ConfigFolder = "OrionTest"
@@ -12,7 +12,7 @@ local Window = OrionLib:MakeWindow({
 -- Notification using OrionLib
 OrionLib:MakeNotification({
     Name = "KENJIE HUB!",
-    Content = "CounterBlox Scripts by made kenjiePH",
+    Content = "WARZONE[FPS] Scripts by made kenjiePH",
     Image = "rbxassetid://4483345998",
     Time = 5
 })
