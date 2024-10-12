@@ -84,8 +84,7 @@ local AimPosition = "Head"
 local AimbotEnabled = false
 local AimlockEnabled = false  -- Changed from SilentAimbotEnabled
 local TeleportEnabled = false
-_G.HeadSize = 5  -- Default head size (set to match the slider's default)
-_G.Disabled = true
+local isSpeedhackEnabled = false
 local TeamCheckEnabled = false
 local hasJumped = false
 local UserInputService = game:GetService("UserInputService")
@@ -93,6 +92,14 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local Camera = workspace.CurrentCamera
+local player = game.Players.LocalPlayer
+local humanoid = workspace:FindFirstChild(player.Name):FindFirstChild("Humanoid")
+
+_G.HeadSize = 5  -- Default head size (set to match the slider's default)
+_G.Disabled = true
+
+local normalWalkSpeed = 16  -- Default WalkSpeed
+local speedhackValue = 5  -- Default Speed value from the slider
 
 -- FOV setting (in degrees)
 local FOV = 30
@@ -479,7 +486,7 @@ PlayerSection:AddSlider({
     Callback = function(Value)
         local player = game.Players.LocalPlayer
         if player and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
+				= player.Character:FindFirstChild("Humanoid")
             if humanoid then
                 humanoid.HipHeight = Value
                 print("Hip Height set to: " .. Value)
@@ -505,6 +512,47 @@ PlayerSection:AddSlider({
     Increment = 1,
     ValueName = "Size",
     Callback = setHeadSize  -- Callback function to update head size
+})
+
+-- Add a Slider for Speedhack Value
+PlayerSection:AddSlider({
+	Name = "Speedhack",
+	Min = 0,
+	Max = 100, -- Adjust the max speed limit if needed
+	Default = 5,
+	Color = Color3.fromRGB(255, 255, 255),
+	Increment = 1,
+	ValueName = "Speed",
+	Callback = function(Value)
+		speedhackValue = Value  -- Store the slider value for the speedhack
+		print("Speedhack set to:", Value)
+		
+		if isSpeedhackEnabled and humanoid then
+			humanoid.WalkSpeed = speedhackValue
+		end
+	end    
+})
+
+-- Add a Key Bind to Toggle Speedhack On and Off
+PlayerSection:AddBind({
+	Name = "Enable/Disable Speedhack",
+	Default = Enum.KeyCode.E,
+	Hold = false,
+	Callback = function()
+		isSpeedhackEnabled = not isSpeedhackEnabled  -- Toggle the state
+		
+		if isSpeedhackEnabled then
+			print("Speedhack enabled")
+			if humanoid then
+				humanoid.WalkSpeed = speedhackValue  -- Apply the speedhack
+			end
+		else
+			print("Speedhack disabled")
+			if humanoid then
+				humanoid.WalkSpeed = normalWalkSpeed  -- Revert to normal speed
+			end
+		end
+	end    
 })
 
 PlayerSection:AddButton({
