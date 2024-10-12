@@ -84,22 +84,22 @@ local AimPosition = "Head"
 local AimbotEnabled = false
 local AimlockEnabled = false  -- Changed from SilentAimbotEnabled
 local TeleportEnabled = false
-local isSpeedhackEnabled = false
+_G.HeadSize = 5  -- Default head size (set to match the slider's default)
+_G.Disabled = true
+local speedEnabled = false
+local currentSpeed = 16 -- Default speed
 local TeamCheckEnabled = false
 local hasJumped = false
 local UserInputService = game:GetService("UserInputService")
+local player = game.Players.LocalPlayer
+local humanoid = workspace:FindFirstChild(player.Name):FindFirstChild("Humanoid")
 local RunService = game:GetService("RunService")
+local speedConnection -- Connection for looping the speed change
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local Camera = workspace.CurrentCamera
-local player = game.Players.LocalPlayer
-local humanoid = workspace:FindFirstChild(player.Name):FindFirstChild("Humanoid")
 
-_G.HeadSize = 5  -- Default head size (set to match the slider's default)
-_G.Disabled = true
 
-local normalWalkSpeed = 16  -- Default WalkSpeed
-local speedhackValue = 5  -- Default Speed value from the slider
 
 -- FOV setting (in degrees)
 local FOV = 30
@@ -341,6 +341,31 @@ local function removeHitboxes()
     end
 end
 
+-- Function to set the humanoid speed
+local function setSpeed(speed)
+	if humanoid then
+		humanoid.WalkSpeed = speed
+	end
+end
+
+-- Function to start speedhack loop
+local function startSpeedLoop()
+	speedConnection = RunService.Heartbeat:Connect(function()
+		if speedEnabled and humanoid then
+			setSpeed(currentSpeed) -- Continuously set speed
+		end
+	end)
+end
+
+-- Function to stop speedhack loop
+local function stopSpeedLoop()
+	if speedConnection then
+		speedConnection:Disconnect()
+		speedConnection = nil
+		setSpeed(16) -- Reset to default speed
+	end
+end
+
 -- Aimbot Tab Toggles
 AimbotSection:AddToggle({
     Name = "Enable Aimbot",
@@ -450,7 +475,7 @@ TeleportSection:AddToggle({
 
 TeleportSection:AddBind({
     Name = "Teleport Key Bind",
-    Default = Enum.KeyCode.E,  -- Default key to enable/disable teleport
+    Default = Enum.KeyCode.F1,  -- Default key to enable/disable teleport
     Hold = false,
     Callback = function()
         TeleportEnabled = not TeleportEnabled  -- Toggle teleportation on key press
@@ -486,7 +511,7 @@ PlayerSection:AddSlider({
     Callback = function(Value)
         local player = game.Players.LocalPlayer
         if player and player.Character then
-				= player.Character:FindFirstChild("Humanoid")
+            local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid then
                 humanoid.HipHeight = Value
                 print("Hip Height set to: " .. Value)
@@ -514,43 +539,43 @@ PlayerSection:AddSlider({
     Callback = setHeadSize  -- Callback function to update head size
 })
 
--- Add a Slider for Speedhack Value
+-- Speed Slider
 PlayerSection:AddSlider({
-	Name = "Speedhack",
+	Name = "Speed",
 	Min = 0,
-	Max = 100, -- Adjust the max speed limit if needed
-	Default = 5,
-	Color = Color3.fromRGB(255, 255, 255),
+	Max = 100, -- Adjust to your desired max speed
+	Default = 16, -- Default walk speed
+	Color = Color3.fromRGB(255,255,255),
 	Increment = 1,
-	ValueName = "Speed",
+	ValueName = "WalkSpeed",
 	Callback = function(Value)
-		speedhackValue = Value  -- Store the slider value for the speedhack
-		print("Speedhack set to:", Value)
-		
-		if isSpeedhackEnabled and humanoid then
-			humanoid.WalkSpeed = speedhackValue
-		end
+		currentSpeed = Value
 	end    
 })
 
--- Add a Key Bind to Toggle Speedhack On and Off
+-- Key Bind to Enable/Disable Speedhack
 PlayerSection:AddBind({
-	Name = "Enable/Disable Speedhack",
+	Name = "Toggle Speedhack",
 	Default = Enum.KeyCode.E,
 	Hold = false,
 	Callback = function()
-		isSpeedhackEnabled = not isSpeedhackEnabled  -- Toggle the state
-		
-		if isSpeedhackEnabled then
-			print("Speedhack enabled")
-			if humanoid then
-				humanoid.WalkSpeed = speedhackValue  -- Apply the speedhack
-			end
+		speedEnabled = not speedEnabled
+		if speedEnabled then
+			startSpeedLoop()
+			OrionLib:MakeNotification({
+				Name = "Speedhack",
+				Content = "Speedhack enabled",
+				Image = "rbxassetid://4483345998",
+				Time = 5
+			})
 		else
-			print("Speedhack disabled")
-			if humanoid then
-				humanoid.WalkSpeed = normalWalkSpeed  -- Revert to normal speed
-			end
+			stopSpeedLoop()
+			OrionLib:MakeNotification({
+				Name = "Speedhack",
+				Content = "Speedhack disabled",
+				Image = "rbxassetid://4483345998",
+				Time = 5
+			})
 		end
 	end    
 })
