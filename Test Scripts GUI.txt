@@ -42,8 +42,8 @@ local PlayerTab = Window:MakeTab({
     PremiumOnly = false
 })
 
-local MiscTab = Window:MakeTab({
-    Name = "MISC",
+local WeaponTab = Window:MakeTab({
+    Name = "WEAPON",
     Icon = "rbxassetid://4483345998",
     PremiumOnly = false
 })
@@ -70,8 +70,8 @@ local PlayerSection = PlayerTab:AddSection({
     Name = "Player Settings"
 })
 
-local MiscSection = MiscTab:AddSection({
-    Name = "Misc Settings"
+local WeaponSection = WeaponTab:AddSection({
+    Name = "Weapon Settings"
 })
 
 local SettingsSection = SettingsTab:AddSection({
@@ -90,15 +90,22 @@ local speedEnabled = false
 local currentSpeed = 16 -- Default speed
 local TeamCheckEnabled = false
 local hasJumped = false
+local CameraOffsetEnabled = false
 local UserInputService = game:GetService("UserInputService")
 local player = game.Players.LocalPlayer
 local humanoid = workspace:FindFirstChild(player.Name):FindFirstChild("Humanoid")
 local RunService = game:GetService("RunService")
 local speedConnection -- Connection for looping the speed change
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
 local CoreGui = game:GetService("CoreGui")
 local Camera = workspace.CurrentCamera
 
+local function updateCameraOffset(offset)
+	Humanoid.CameraOffset = offset
+end
 
 
 -- FOV setting (in degrees)
@@ -499,27 +506,6 @@ TeleportSection:AddSlider({
     end
 })
 
--- Slider for HipHeight
-PlayerSection:AddSlider({
-    Name = "Hip Height",
-    Min = 2,
-    Max = 100,
-    Default = 2, -- Default HipHeight value
-    Color = Color3.fromRGB(255, 255, 255),
-    Increment = 0.1,
-    ValueName = "HipHeight",
-    Callback = function(Value)
-        local player = game.Players.LocalPlayer
-        if player and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.HipHeight = Value
-                print("Hip Height set to: " .. Value)
-            end
-        end
-    end    
-})
-
 -- Add Checkbox Toggle
 PlayerSection:AddToggle({
     Name = "Enable Head Modification",
@@ -606,6 +592,38 @@ PlayerSection:AddButton({
     end    
 })
 
+PlayerSection:AddButton({
+    Name = "Delete Bot",
+    Callback = function()
+        local folderName = "Bot" -- Name of the folder to delete
+        local workspaceFolder = game.Workspace:FindFirstChild(folderName)
+
+        if workspaceFolder then
+            -- Delete the folder
+            workspaceFolder:Destroy()
+            print(folderName .. " folder has been successfully deleted from Workspace.")
+        else
+            print("There is no " .. folderName .. " folder in Workspace.")
+        end
+    end    
+})
+
+WeaponSection:AddBind({
+	Name = "Toggle Height Scope",
+	Default = Enum.KeyCode.F2,
+	Hold = false,
+	Callback = function()
+		CameraOffsetEnabled = not CameraOffsetEnabled
+		if CameraOffsetEnabled then
+			updateCameraOffset(Vector3.new(0, 20, 0))
+			print("Camera Offset Enabled")
+		else
+			updateCameraOffset(Vector3.new(0, 0, 0))
+			print("Camera Offset Disabled")
+		end
+	end    
+})
+
 -- Slider for X Position
 SettingsTab:AddSlider({
     Name = "X Position",
@@ -625,7 +643,7 @@ SettingsTab:AddSlider({
     Name = "Y Position",
     Min = -500,
     Max = 500,
-    Default = -27.5,
+    Default = -18,
     Color = Color3.fromRGB(255, 255, 255),
     Increment = 1,
     ValueName = "Y",
@@ -647,6 +665,10 @@ SettingsTab:AddButton({
     end    
 })
 
+LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+	Character = newCharacter
+	Humanoid = Character:WaitForChild("Humanoid")
+end)
 
 -- Connection for aimbot and aimlock
 RunService.RenderStepped:Connect(function()
