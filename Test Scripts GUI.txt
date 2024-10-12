@@ -625,7 +625,7 @@ SettingsTab:AddSlider({
     Name = "Y Position",
     Min = -500,
     Max = 500,
-    Default = -17.5,
+    Default = -27.5,
     Color = Color3.fromRGB(255, 255, 255),
     Increment = 1,
     ValueName = "Y",
