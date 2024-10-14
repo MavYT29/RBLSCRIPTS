@@ -211,8 +211,6 @@ local function applyAimbot()
             -- Determine target position based on selected aim position with additional safety checks
             if AimPosition == "Head" and closestPlayer.Character:FindFirstChild("Head") then
                 targetPosition = closestPlayer.Character.Head.Position
-            elseif AimPosition == "Neck" and closestPlayer.Character:FindFirstChild("Neck") then
-                targetPosition = closestPlayer.Character.Neck.Position
             elseif AimPosition == "Chest" and closestPlayer.Character:FindFirstChild("UpperTorso") then
                 targetPosition = closestPlayer.Character.UpperTorso.Position
             elseif AimPosition == "Foot" and closestPlayer.Character:FindFirstChild("HumanoidRootPart") then
@@ -242,8 +240,6 @@ local function applyAimlock()
             -- Determine target position based on selected aim position
             if AimPosition == "Head" and closestPlayer.Character:FindFirstChild("Head") then
                 targetPosition = closestPlayer.Character.Head.Position
-            elseif AimPosition == "Neck" and closestPlayer.Character:FindFirstChild("Neck") then
-                targetPosition = closestPlayer.Character.Neck.Position
             elseif AimPosition == "Chest" and closestPlayer.Character:FindFirstChild("UpperTorso") then
                 targetPosition = closestPlayer.Character.UpperTorso.Position
             elseif AimPosition == "Foot" and closestPlayer.Character:FindFirstChild("HumanoidRootPart") then
@@ -387,7 +383,7 @@ AimbotSection:AddToggle({
 AimbotSection:AddDropdown({
     Name = "Aim Position",
     Default = "Head",  -- Default value
-    Options = {"Head", "Neck", "Chest", "Foot"},  -- Available options
+    Options = {"Head", "Chest", "Foot"},  -- Available options
     Callback = function(selected)
         setAimPosition(selected)  -- Update the global aim position variable
         print("Aim position set to: " .. selected)
@@ -542,7 +538,7 @@ PlayerSection:AddSlider({
 -- Key Bind to Enable/Disable Speedhack
 PlayerSection:AddBind({
 	Name = "Toggle Speedhack",
-	Default = Enum.KeyCode.E,
+	Default = Enum.KeyCode.F3,
 	Hold = false,
 	Callback = function()
 		speedEnabled = not speedEnabled
