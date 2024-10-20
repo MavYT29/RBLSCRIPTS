@@ -183,18 +183,6 @@ local function getClosestVisiblePlayerForAimbot()
     local nearestPlayer = nil
     local shortestDistance = math.huge
 
-    -- Check for Dummy in Workspace
-    if Workspace:FindFirstChild("Dummy") and Workspace.Dummy:FindFirstChild("Humanoid") then
-        local dummy = Workspace.Dummy
-        local humanoid = dummy:FindFirstChild("Humanoid")
-        local distance = (dummy.HumanoidRootPart.Position - Camera.CFrame.Position).Magnitude
-
-        -- Visibility and FOV checks
-        if distance < shortestDistance and isTargetVisible(dummy.HumanoidRootPart) and isInFOV(dummy.HumanoidRootPart.Position) then
-            return dummy -- Prioritize Dummy
-        end
-    end
-
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Head") then
             local head = player.Character:FindFirstChild("Head") -- Safety check for Head
@@ -217,16 +205,16 @@ end
 local function applyAimbot()
     if AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
         local closestPlayer = getClosestVisiblePlayerForAimbot()
-        if closestPlayer and closestPlayer:FindFirstChild("Humanoid") then
+        if closestPlayer and closestPlayer.Character then
             local targetPosition
 
             -- Determine target position based on selected aim position with additional safety checks
-            if AimPosition == "Head" and closestPlayer:FindFirstChild("Head") then
-                targetPosition = closestPlayer.Head.Position
-            elseif AimPosition == "Chest" and closestPlayer:FindFirstChild("UpperTorso") then
-                targetPosition = closestPlayer.UpperTorso.Position
-            elseif AimPosition == "Foot" and closestPlayer:FindFirstChild("HumanoidRootPart") then
-                targetPosition = closestPlayer.HumanoidRootPart.Position
+            if AimPosition == "Head" and closestPlayer.Character:FindFirstChild("Head") then
+                targetPosition = closestPlayer.Character.Head.Position
+            elseif AimPosition == "Chest" and closestPlayer.Character:FindFirstChild("UpperTorso") then
+                targetPosition = closestPlayer.Character.UpperTorso.Position
+            elseif AimPosition == "Foot" and closestPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                targetPosition = closestPlayer.Character.HumanoidRootPart.Position
             end
 
             if targetPosition then
@@ -237,20 +225,25 @@ local function applyAimbot()
     end
 end
 
+-- Function to set the aim position with error checks
+local function setAimPosition(position)
+    AimPosition = position
+end
+
 -- Function to apply 360 Aimlock with smooth targeting and aim position selection
 local function applyAimlock()
     if AimlockEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
         local closestPlayer = getClosestVisiblePlayerForAimbot()
-        if closestPlayer and closestPlayer:FindFirstChild("Humanoid") then
+        if closestPlayer and closestPlayer.Character then
             local targetPosition
 
             -- Determine target position based on selected aim position
-            if AimPosition == "Head" and closestPlayer:FindFirstChild("Head") then
-                targetPosition = closestPlayer.Head.Position
-            elseif AimPosition == "Chest" and closestPlayer:FindFirstChild("UpperTorso") then
-                targetPosition = closestPlayer.UpperTorso.Position
-            elseif AimPosition == "Foot" and closestPlayer:FindFirstChild("HumanoidRootPart") then
-                targetPosition = closestPlayer.HumanoidRootPart.Position
+            if AimPosition == "Head" and closestPlayer.Character:FindFirstChild("Head") then
+                targetPosition = closestPlayer.Character.Head.Position
+            elseif AimPosition == "Chest" and closestPlayer.Character:FindFirstChild("UpperTorso") then
+                targetPosition = closestPlayer.Character.UpperTorso.Position
+            elseif AimPosition == "Foot" and closestPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                targetPosition = closestPlayer.Character.HumanoidRootPart.Position
             end
 
             if targetPosition then
@@ -259,27 +252,6 @@ local function applyAimlock()
                 local cameraLookAt = cameraPosition + directionToTarget
 
                 -- Smoothly adjust the camera's CFrame to look at the target position
-                Camera.CFrame = CFrame.new(cameraPosition, cameraLookAt)
-            end
-        end
-    end
-end
-
--- Function to automatically aimlock the Dummy with headshot targeting and FOV/visibility checks
-local function AimlockDummy()
-    if Workspace:FindFirstChild("Dummy") and Workspace.Dummy:FindFirstChild("Humanoid") then
-        local dummy = Workspace.Dummy
-        if AimlockEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-            local targetHead = dummy:FindFirstChild("Head")
-
-            -- Check if Dummy's head exists and passes visibility and FOV checks
-            if targetHead and isTargetVisible(targetHead) and isInFOV(targetHead.Position) then
-                local targetPosition = targetHead.Position
-                local directionToTarget = (targetPosition - Camera.CFrame.Position).unit
-                local cameraPosition = Camera.CFrame.Position
-                local cameraLookAt = cameraPosition + directionToTarget
-
-                -- Smoothly adjust the camera's CFrame to look at the Dummy's head (headshot)
                 Camera.CFrame = CFrame.new(cameraPosition, cameraLookAt)
             end
         end
@@ -397,18 +369,6 @@ local function stopSpeedLoop()
 	end
 end
 
--- Function to handle selection from the dropdown
-local function handleAimlockSelection(selection)
-    if selection == "Normal" then
-        applyAimlock() -- Normal aimbot
-    elseif selection == "Dummy" then
-        AimlockDummy() -- Aimlock for Dummy
-    elseif selection == "All" then
-        applyAimlock() -- Normal aimbot
-        AimlockDummy() -- Aimlock for Dummy
-    end
-end
-
 -- Aimbot Tab Toggles
 AimbotSection:AddToggle({
     Name = "Enable Aimbot",
@@ -428,17 +388,6 @@ AimbotSection:AddDropdown({
         setAimPosition(selected)  -- Update the global aim position variable
         print("Aim position set to: " .. selected)
     end    
-})
-
--- Dropdown for aimlock selection
-AimbotSection:AddDropdown({
-    Name = "Aimlock Type",
-    Default = "Normal", -- Default selection
-    Options = {"Normal", "Dummy", "All"}, -- Dropdown options
-    Callback = function(Value)
-        print("Selected Aimlock Type:", Value)
-        handleAimlockSelection(Value) -- Call function to handle the selection
-    end
 })
 
 AimbotSection:AddToggle({
