@@ -524,7 +524,7 @@ TeleportSection:AddSlider({
 })
 
 TeleportSection:AddSlider({
-	Name = "Object Teleport Wait Time",
+	Name = "Supply Teleport Wait Time",
 	Min = 0,
 	Max = 10,
 	Default = teleportWaitTime,
@@ -537,19 +537,19 @@ TeleportSection:AddSlider({
 })
 
 TeleportSection:AddBind({
-	Name = "Object Teleport",
+	Name = "Supply Teleport",
 	Default = Enum.KeyCode.E,
 	Hold = false,
 	Callback = function()
 		ObjectTeleportEnabled = not ObjectTeleportEnabled
 		if ObjectTeleportEnabled then
-			print("Object Teleportation Enabled")
+			print("Supply Teleportation Enabled")
 			while ObjectTeleportEnabled do
 				teleportToModels()
 				wait(1) -- Wait before the next teleport cycle
 			end
 		else
-			print("Object Teleportation Disabled")
+			print("Supply Teleportation Disabled")
 		end
 	end    
 })
