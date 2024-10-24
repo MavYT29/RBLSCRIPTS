@@ -84,18 +84,20 @@ local AimPosition = "Head"
 local AimbotEnabled = false
 local AimlockEnabled = false  -- Changed from SilentAimbotEnabled
 local TeleportEnabled = false
+local ObjectTeleportEnabled = false
+local teleportWaitTime = 3 -- Default wait time
 _G.HeadSize = 5  -- Default head size (set to match the slider's default)
 _G.Disabled = true
-local speedEnabled = false
-local currentSpeed = 16 -- Default speed
 local TeamCheckEnabled = false
 local hasJumped = false
 local CameraOffsetEnabled = false
+local CameraOffsetX = 0
+local CameraOffsetY = 20
+local CameraOffsetZ = 0
 local UserInputService = game:GetService("UserInputService")
 local player = game.Players.LocalPlayer
 local humanoid = workspace:FindFirstChild(player.Name):FindFirstChild("Humanoid")
 local RunService = game:GetService("RunService")
-local speedConnection -- Connection for looping the speed change
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -344,29 +346,48 @@ local function removeHitboxes()
     end
 end
 
--- Function to set the humanoid speed
-local function setSpeed(speed)
-	if humanoid then
-		humanoid.WalkSpeed = speed
-	end
+-- Function to update the camera offset
+local function updateCameraOffset(offset)
+    CameraOffsetX = offset.X
+    CameraOffsetY = offset.Y
+    CameraOffsetZ = offset.Z
+    -- Implement the logic to apply the offset to the camera here
 end
 
--- Function to start speedhack loop
-local function startSpeedLoop()
-	speedConnection = RunService.Heartbeat:Connect(function()
-		if speedEnabled and humanoid then
-			setSpeed(currentSpeed) -- Continuously set speed
-		end
-	end)
+-- Function to update the camera offset
+local function updateCameraOffset()
+    local camera = game.Workspace.CurrentCamera
+    if CameraOffsetEnabled then
+        camera.CFrame = camera.CFrame + Vector3.new(CameraOffsetX, CameraOffsetY, CameraOffsetZ)
+    else
+        -- Reset camera to original position logic can go here if needed
+    end
 end
 
--- Function to stop speedhack loop
-local function stopSpeedLoop()
-	if speedConnection then
-		speedConnection:Disconnect()
-		speedConnection = nil
-		setSpeed(16) -- Reset to default speed
-	end
+-- Function to teleport to models
+local function teleportToModels()
+    local player = game.Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+    -- Save the player's original position
+    local originalPosition = humanoidRootPart.Position
+
+    -- Reference to the models inside "Workspace > _Temp"
+    local modelsFolder = game.Workspace:WaitForChild("_Temp")
+
+    -- Teleport to each model one by one
+    for _, model in pairs(modelsFolder:GetChildren()) do
+        if model:IsA("Model") and model.PrimaryPart then
+            -- Teleport to the model's position with an upward offset
+            humanoidRootPart.CFrame = model.PrimaryPart.CFrame * CFrame.new(0, 10, 0) -- 10 studs up
+            wait(teleportWaitTime) -- Wait for the specified time before teleporting to the next model
+        end
+    end
+
+    -- Teleport back to the original position after visiting all models
+    wait(2)
+    humanoidRootPart.CFrame = CFrame.new(originalPosition)
 end
 
 -- Aimbot Tab Toggles
@@ -502,6 +523,37 @@ TeleportSection:AddSlider({
     end
 })
 
+TeleportSection:AddSlider({
+	Name = "Object Teleport Wait Time",
+	Min = 0,
+	Max = 10,
+	Default = teleportWaitTime,
+	Color = Color3.fromRGB(255, 255, 255),
+	Increment = 1,
+	ValueName = "seconds",
+	Callback = function(Value)
+		teleportWaitTime = Value
+	end    
+})
+
+TeleportSection:AddBind({
+	Name = "Object Teleport",
+	Default = Enum.KeyCode.E,
+	Hold = false,
+	Callback = function()
+		ObjectTeleportEnabled = not ObjectTeleportEnabled
+		if ObjectTeleportEnabled then
+			print("Object Teleportation Enabled")
+			while ObjectTeleportEnabled do
+				teleportToModels()
+				wait(1) -- Wait before the next teleport cycle
+			end
+		else
+			print("Object Teleportation Disabled")
+		end
+	end    
+})
+
 -- Add Checkbox Toggle
 PlayerSection:AddToggle({
     Name = "Enable Head Modification",
@@ -519,47 +571,6 @@ PlayerSection:AddSlider({
     Increment = 1,
     ValueName = "Size",
     Callback = setHeadSize  -- Callback function to update head size
-})
-
--- Speed Slider
-PlayerSection:AddSlider({
-	Name = "Speed",
-	Min = 0,
-	Max = 100, -- Adjust to your desired max speed
-	Default = 16, -- Default walk speed
-	Color = Color3.fromRGB(255,255,255),
-	Increment = 1,
-	ValueName = "WalkSpeed",
-	Callback = function(Value)
-		currentSpeed = Value
-	end    
-})
-
--- Key Bind to Enable/Disable Speedhack
-PlayerSection:AddBind({
-	Name = "Toggle Speedhack",
-	Default = Enum.KeyCode.F3,
-	Hold = false,
-	Callback = function()
-		speedEnabled = not speedEnabled
-		if speedEnabled then
-			startSpeedLoop()
-			OrionLib:MakeNotification({
-				Name = "Speedhack",
-				Content = "Speedhack enabled",
-				Image = "rbxassetid://4483345998",
-				Time = 5
-			})
-		else
-			stopSpeedLoop()
-			OrionLib:MakeNotification({
-				Name = "Speedhack",
-				Content = "Speedhack disabled",
-				Image = "rbxassetid://4483345998",
-				Time = 5
-			})
-		end
-	end    
 })
 
 PlayerSection:AddButton({
@@ -604,20 +615,62 @@ PlayerSection:AddButton({
     end    
 })
 
+-- Keybind for toggling height scope
 WeaponSection:AddBind({
-	Name = "Toggle Height Scope",
-	Default = Enum.KeyCode.F2,
-	Hold = false,
-	Callback = function()
-		CameraOffsetEnabled = not CameraOffsetEnabled
-		if CameraOffsetEnabled then
-			updateCameraOffset(Vector3.new(0, 20, 0))
-			print("Camera Offset Enabled")
-		else
-			updateCameraOffset(Vector3.new(0, 0, 0))
-			print("Camera Offset Disabled")
-		end
-	end    
+    Name = "Toggle Height Scope",
+    Default = Enum.KeyCode.F2,
+    Hold = false,
+    Callback = function()
+        CameraOffsetEnabled = not CameraOffsetEnabled
+        if CameraOffsetEnabled then
+            updateCameraOffset() -- Update camera position when enabled
+            print("Camera Offset Enabled")
+        else
+            print("Camera Offset Disabled")
+            -- Reset the camera offset if you want to return to the original position
+            updateCameraOffset() -- This could be adjusted based on your needs
+        end
+    end    
+})
+
+-- Sliders for X, Y, and Z offsets
+WeaponSection:AddSlider({
+    Name = "Camera Offset X",
+    Min = -100,
+    Max = 100,
+    Default = 0,
+    Callback = function(value)
+        CameraOffsetX = value
+        if CameraOffsetEnabled then
+            updateCameraOffset() -- Update camera position when slider is adjusted
+        end
+    end
+})
+
+WeaponSection:AddSlider({
+    Name = "Camera Offset Y",
+    Min = 0,
+    Max = 100,
+    Default = 20,
+    Callback = function(value)
+        CameraOffsetY = value
+        if CameraOffsetEnabled then
+            updateCameraOffset() -- Update camera position when slider is adjusted
+        end
+    end
+})
+
+WeaponSection:AddSlider({
+    Name = "Camera Offset Z",
+    Min = -100,
+    Max = 100,
+    Default = 0,
+    Callback = function(value)
+        CameraOffsetZ = value
+        if CameraOffsetEnabled then
+            updateCameraOffset() -- Update camera position when slider is adjusted
+        end
+    end
 })
 
 -- Slider for X Position
@@ -674,5 +727,12 @@ RunService.RenderStepped:Connect(function()
 
     if AimlockEnabled then
         applyAimlock()
+    end
+end)
+
+-- Optional: Update the camera periodically
+game:GetService("RunService").RenderStepped:Connect(function()
+    if CameraOffsetEnabled then
+        updateCameraOffset() -- Continuously apply the camera offset if enabled
     end
 end)
