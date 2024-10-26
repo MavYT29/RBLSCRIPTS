@@ -2,12 +2,11 @@ _G.FriendColor = Color3.fromRGB(0, 0, 255)
 _G.EnemyColor = Color3.fromRGB(255, 0, 0)
 _G.UseTeamColor = true
 
---------------------------------------------------------------------
 local Holder = Instance.new("Folder", game.CoreGui)
 Holder.Name = "ESP"
 
 local Box = Instance.new("BoxHandleAdornment")
-Box.Name = "nilBox"
+Box.Name = "Box"
 Box.Size = Vector3.new(1, 2, 1)
 Box.Color3 = Color3.new(0, 0, 0) -- Outline color
 Box.Transparency = 0.5 -- Adjust transparency to make it semi-transparent
@@ -16,11 +15,11 @@ Box.AlwaysOnTop = true
 Box.Visible = false
 
 local NameTag = Instance.new("BillboardGui")
-NameTag.Name = "nilNameTag"
+NameTag.Name = "NameTag"
 NameTag.Enabled = false
 NameTag.Size = UDim2.new(0, 200, 0, 50) -- Adjusted height
 NameTag.AlwaysOnTop = true
-NameTag.StudsOffset = Vector3.new(0, 1.8, 0)
+NameTag.StudsOffset = Vector3.new(0, 1.5, 0) -- Position above the player
 
 local Tag = Instance.new("TextLabel", NameTag)
 Tag.Name = "Tag"
@@ -28,17 +27,35 @@ Tag.BackgroundTransparency = 1
 Tag.Position = UDim2.new(0, -50, 0, 0)
 Tag.Size = UDim2.new(0, 300, 0, 20)
 Tag.TextSize = 15
-Tag.TextColor3 = Color3.new(100 / 255, 100 / 255, 100 / 255)
-Tag.TextStrokeColor3 = Color3.new(0 / 255, 0 / 255, 0 / 255)
+Tag.TextColor3 = Color3.new(1, 1, 1) -- White text
+Tag.TextStrokeColor3 = Color3.new(0, 0, 0) -- Black outline
 Tag.TextStrokeTransparency = 0.4
-Tag.Text = "nil"
+Tag.Text = "" -- Set to empty initially
 Tag.Font = Enum.Font.SourceSansBold
 Tag.TextScaled = false
+
+local DistanceLabel = Instance.new("TextLabel")
+DistanceLabel.BackgroundTransparency = 1
+DistanceLabel.Size = UDim2.new(0, 300, 0, 20)
+DistanceLabel.Position = UDim2.new(0, -50, 0, 17) -- Positioned below the name tag
+DistanceLabel.TextSize = 15
+DistanceLabel.TextColor3 = Color3.new(1, 1, 1) -- White text
+DistanceLabel.TextStrokeColor3 = Color3.new(0, 0, 0) -- Black outline
+DistanceLabel.TextStrokeTransparency = 0.4
+DistanceLabel.Font = Enum.Font.SourceSansBold
+DistanceLabel.Text = ""
+
+-- Function to update distance text
+local function UpdateDistanceText(player, distanceLabel)
+    local distance = (player.Character.HumanoidRootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).magnitude
+    distanceLabel.Text = "Distance: " .. math.floor(distance)
+end
 
 local LoadCharacter = function(v)
     repeat wait() until v.Character ~= nil
     v.Character:WaitForChild("Humanoid")
-    local vHolder = Holder:FindFirstChild(v.Name)
+    local vHolder = Holder:FindFirstChild(v.Name) or Instance.new("Folder", Holder)
+    vHolder.Name = v.Name
     vHolder:ClearAllChildren()
     
     local b = Box:Clone()
@@ -56,14 +73,22 @@ local LoadCharacter = function(v)
         return UnloadCharacter(v)
     end
     
-    t.Tag.Text = v.Name
     b.Color3 = Color3.new(v.TeamColor.r, v.TeamColor.g, v.TeamColor.b)
     t.Tag.TextColor3 = Color3.new(v.TeamColor.r, v.TeamColor.g, v.TeamColor.b)
+
+    -- Set the player's name on the tag
+    t.Tag.Text = v.Name
+
+    -- Clone and set up distance label
+    local distanceLabel = DistanceLabel:Clone()
+    distanceLabel.Parent = t
+    UpdateDistanceText(v, distanceLabel)
 
     local Update
     local UpdateNameTag = function()
         if not pcall(function()
             v.Character.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+            UpdateDistanceText(v, distanceLabel)
         end) then
             Update:Disconnect()
         end
@@ -75,14 +100,12 @@ end
 
 local UnloadCharacter = function(v)
     local vHolder = Holder:FindFirstChild(v.Name)
-    if vHolder and (vHolder:FindFirstChild(v.Name .. "Box") ~= nil or vHolder:FindFirstChild(v.Name .. "NameTag") ~= nil) then
+    if vHolder then
         vHolder:ClearAllChildren()
     end
 end
 
 local LoadPlayer = function(v)
-    local vHolder = Instance.new("Folder", Holder)
-    vHolder.Name = v.Name
     v.CharacterAdded:Connect(function()
         pcall(LoadCharacter, v)
     end)
