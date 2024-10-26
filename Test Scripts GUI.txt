@@ -472,7 +472,7 @@ AimbotSection:AddToggle({
 })
 
 ESPSection:AddButton({
-    Name = "ESP & HealthBar",
+    Name = "ESP & DistancePlayer",
     Callback = function()
         local espSource = game:HttpGet('https://raw.githubusercontent.com/MavYT29/RBLSCRIPTS/refs/heads/main/ESP.txt')
         local espScript = loadstring(espSource)
