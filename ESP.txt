@@ -1,181 +1,325 @@
-_G.FriendColor = Color3.fromRGB(0, 0, 255)
-_G.EnemyColor = Color3.fromRGB(255, 0, 0)
-_G.UseTeamColor = true
+-- ESP Configuration Settings
+_G.FriendColor = Color3.fromRGB(0, 255, 0)      -- Green for friends
+_G.EnemyColor = Color3.fromRGB(255, 0, 0)       -- Red for enemies
+_G.NeutralColor = Color3.fromRGB(255, 255, 0)   -- Yellow for neutral
+_G.UseTeamColor = true                           -- Use team colors
+_G.ShowNames = true                             -- Show player names
+_G.ShowDistance = true                          -- Show distance
+_G.ShowHealth = true                            -- Show health bars
+_G.BoxTransparency = 0.3                        -- Box transparency
+_G.NameTagTransparency = 0.1                    -- Name tag background transparency
+_G.MaxDistance = 500                           -- Maximum render distance
 
-local Holder = Instance.new("Folder", game.CoreGui)
-Holder.Name = "ESP"
+-- Main ESP Handler
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
-local Box = Instance.new("BoxHandleAdornment")
-Box.Name = "Box"
-Box.Size = Vector3.new(1, 2, 1)
-Box.Color3 = Color3.new(0, 0, 0) -- Outline color
-Box.Transparency = 0.5 -- Adjust transparency to make it semi-transparent
-Box.ZIndex = 0
-Box.AlwaysOnTop = true
-Box.Visible = false
+-- Create ESP container
+local ESPHolder = Instance.new("Folder")
+ESPHolder.Name = "ESPHolder"
+ESPHolder.Parent = game.CoreGui
 
-local NameTag = Instance.new("BillboardGui")
-NameTag.Name = "NameTag"
-NameTag.Enabled = false
-NameTag.Size = UDim2.new(0, 200, 0, 50) -- Adjusted height
-NameTag.AlwaysOnTop = true
-NameTag.StudsOffset = Vector3.new(0, 1.5, 0) -- Position above the player
+-- Box ESP Template
+local BoxTemplate = Instance.new("BoxHandleAdornment")
+BoxTemplate.Name = "BoxESP"
+BoxTemplate.Size = Vector3.new(4, 6, 1)
+BoxTemplate.Color3 = Color3.new(1, 1, 1)
+BoxTemplate.Transparency = _G.BoxTransparency
+BoxTemplate.ZIndex = 1
+BoxTemplate.AlwaysOnTop = true
+BoxTemplate.Adornee = nil
+BoxTemplate.Visible = false
 
-local Tag = Instance.new("TextLabel", NameTag)
-Tag.Name = "Tag"
-Tag.BackgroundTransparency = 1
-Tag.Position = UDim2.new(0, -50, 0, 0)
-Tag.Size = UDim2.new(0, 300, 0, 20)
-Tag.TextSize = 15
-Tag.TextColor3 = Color3.new(1, 1, 1) -- White text
-Tag.TextStrokeColor3 = Color3.new(0, 0, 0) -- Black outline
-Tag.TextStrokeTransparency = 0.4
-Tag.Text = "" -- Set to empty initially
-Tag.Font = Enum.Font.SourceSansBold
-Tag.TextScaled = false
+-- Name Tag Template
+local NameTagTemplate = Instance.new("BillboardGui")
+NameTagTemplate.Name = "NameTagESP"
+NameTagTemplate.Size = UDim2.new(0, 200, 0, 80)
+NameTagTemplate.AlwaysOnTop = true
+NameTagTemplate.MaxDistance = _G.MaxDistance
+NameTagTemplate.StudsOffset = Vector3.new(0, 3.5, 0)
+NameTagTemplate.Active = false
+NameTagTemplate.ClipsDescendants = false
 
-local DistanceLabel = Instance.new("TextLabel")
+-- Background Frame
+local Background = Instance.new("Frame", NameTagTemplate)
+Background.Name = "Background"
+Background.Size = UDim2.new(1, 0, 1, 0)
+Background.BackgroundColor3 = Color3.new(0, 0, 0)
+Background.BackgroundTransparency = _G.NameTagTransparency
+Background.BorderSizePixel = 0
+
+-- Corner rounding
+local UICorner = Instance.new("UICorner", Background)
+UICorner.CornerRadius = UDim.new(0, 4)
+
+-- Player Name Label
+local NameLabel = Instance.new("TextLabel", NameTagTemplate)
+NameLabel.Name = "Name"
+NameLabel.Size = UDim2.new(1, 0, 0.4, 0)
+NameLabel.Position = UDim2.new(0, 0, 0, 0)
+NameLabel.BackgroundTransparency = 1
+NameLabel.TextColor3 = Color3.new(1, 1, 1)
+NameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+NameLabel.TextStrokeTransparency = 0.5
+NameLabel.TextSize = 16
+NameLabel.Font = Enum.Font.GothamBold
+NameLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Distance Label
+local DistanceLabel = Instance.new("TextLabel", NameTagTemplate)
+DistanceLabel.Name = "Distance"
+DistanceLabel.Size = UDim2.new(1, 0, 0.3, 0)
+DistanceLabel.Position = UDim2.new(0, 0, 0.4, 0)
 DistanceLabel.BackgroundTransparency = 1
-DistanceLabel.Size = UDim2.new(0, 300, 0, 20)
-DistanceLabel.Position = UDim2.new(0, -50, 0, 17) -- Positioned below the name tag
-DistanceLabel.TextSize = 15
-DistanceLabel.TextColor3 = Color3.new(1, 1, 1) -- White text
-DistanceLabel.TextStrokeColor3 = Color3.new(0, 0, 0) -- Black outline
-DistanceLabel.TextStrokeTransparency = 0.4
-DistanceLabel.Font = Enum.Font.SourceSansBold
-DistanceLabel.Text = ""
+DistanceLabel.TextColor3 = Color3.new(0.8, 0.8, 1)
+DistanceLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+DistanceLabel.TextStrokeTransparency = 0.5
+DistanceLabel.TextSize = 14
+DistanceLabel.Font = Enum.Font.Gotham
+DistanceLabel.TextXAlignment = Enum.TextXAlignment.Center
 
--- Function to update distance text
-local function UpdateDistanceText(player, distanceLabel)
-    local distance = (player.Character.HumanoidRootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).magnitude
-    distanceLabel.Text = "Distance: " .. math.floor(distance)
-end
+-- Health Bar Container
+local HealthBarContainer = Instance.new("Frame", NameTagTemplate)
+HealthBarContainer.Name = "HealthBar"
+HealthBarContainer.Size = UDim2.new(0.8, 0, 0.2, 0)
+HealthBarContainer.Position = UDim2.new(0.1, 0, 0.75, 0)
+HealthBarContainer.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+HealthBarContainer.BorderSizePixel = 0
 
-local LoadCharacter = function(v)
-    repeat wait() until v.Character ~= nil
-    v.Character:WaitForChild("Humanoid")
-    local vHolder = Holder:FindFirstChild(v.Name) or Instance.new("Folder", Holder)
-    vHolder.Name = v.Name
-    vHolder:ClearAllChildren()
-    
-    local b = Box:Clone()
-    b.Name = v.Name .. "Box"
-    b.Adornee = v.Character
-    b.Parent = vHolder
-    
-    local t = NameTag:Clone()
-    t.Name = v.Name .. "NameTag"
-    t.Enabled = true
-    t.Parent = vHolder
-    t.Adornee = v.Character:WaitForChild("Head", 5)
-    
-    if not t.Adornee then
-        return UnloadCharacter(v)
-    end
-    
-    b.Color3 = Color3.new(v.TeamColor.r, v.TeamColor.g, v.TeamColor.b)
-    t.Tag.TextColor3 = Color3.new(v.TeamColor.r, v.TeamColor.g, v.TeamColor.b)
+local HealthBarCorner = Instance.new("UICorner", HealthBarContainer)
+HealthBarCorner.CornerRadius = UDim.new(1, 0)
 
-    -- Set the player's name on the tag
-    t.Tag.Text = v.Name
+-- Health Fill
+local HealthFill = Instance.new("Frame", HealthBarContainer)
+HealthFill.Name = "HealthFill"
+HealthFill.Size = UDim2.new(1, 0, 1, 0)
+HealthFill.BackgroundColor3 = Color3.new(0, 1, 0)
+HealthFill.BorderSizePixel = 0
 
-    -- Clone and set up distance label
-    local distanceLabel = DistanceLabel:Clone()
-    distanceLabel.Parent = t
-    UpdateDistanceText(v, distanceLabel)
+local HealthFillCorner = Instance.new("UICorner", HealthFill)
+HealthFillCorner.CornerRadius = UDim.new(1, 0)
 
-    local Update
-    local UpdateNameTag = function()
-        if not pcall(function()
-            v.Character.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-            UpdateDistanceText(v, distanceLabel)
-        end) then
-            Update:Disconnect()
-        end
-    end
+-- Health Text
+local HealthText = Instance.new("TextLabel", NameTagTemplate)
+HealthText.Name = "HealthText"
+HealthText.Size = UDim2.new(1, 0, 0.3, 0)
+HealthText.Position = UDim2.new(0, 0, 0.7, 0)
+HealthText.BackgroundTransparency = 1
+HealthText.TextColor3 = Color3.new(1, 1, 1)
+HealthText.TextStrokeColor3 = Color3.new(0, 0, 0)
+HealthText.TextStrokeTransparency = 0.5
+HealthText.TextSize = 12
+HealthText.Font = Enum.Font.Gotham
+HealthText.TextXAlignment = Enum.TextXAlignment.Center
 
-    UpdateNameTag()
-    Update = v.Character.Humanoid.Changed:Connect(UpdateNameTag)
-end
+-- Store ESP data
+local ESPData = {}
 
-local UnloadCharacter = function(v)
-    local vHolder = Holder:FindFirstChild(v.Name)
-    if vHolder then
-        vHolder:ClearAllChildren()
-    end
-end
-
-local LoadPlayer = function(v)
-    v.CharacterAdded:Connect(function()
-        pcall(LoadCharacter, v)
-    end)
-    v.CharacterRemoving:Connect(function()
-        pcall(UnloadCharacter, v)
-    end)
-    v.Changed:Connect(function(prop)
-        if prop == "TeamColor" then
-            UnloadCharacter(v)
-            wait()
-            LoadCharacter(v)
-        end
-    end)
-    LoadCharacter(v)
-end
-
-local UnloadPlayer = function(v)
-    UnloadCharacter(v)
-    local vHolder = Holder:FindFirstChild(v.Name)
-    if vHolder then
-        vHolder:Destroy()
-    end
-end
-
-for i, v in pairs(game:GetService("Players"):GetPlayers()) do
-    spawn(function() pcall(LoadPlayer, v) end)
-end
-
-game:GetService("Players").PlayerAdded:Connect(function(v)
-    pcall(LoadPlayer, v)
-end)
-
-game:GetService("Players").PlayerRemoving:Connect(function(v)
-    pcall(UnloadPlayer, v)
-end)
-
-game:GetService("Players").LocalPlayer.NameDisplayDistance = 0
-
-if _G.Reantheajfdfjdgs then
-    return
-end
-
-_G.Reantheajfdfjdgs = ":suifayhgvsdghfsfkajewfrhk321rk213kjrgkhj432rj34f67df"
-
-local players = game:GetService("Players")
-local plr = players.LocalPlayer
-
-function esp(target, color)
-    if target.Character then
-        if not target.Character:FindFirstChild("GetReal") then
-            local highlight = Instance.new("Highlight")
-            highlight.RobloxLocked = true
-            highlight.Name = "GetReal"
-            highlight.Adornee = target.Character
-            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            highlight.FillColor = Color3.new(0, 0, 0) -- Transparent fill color
-            highlight.FillTransparency = 1 -- Fully transparent fill
-            highlight.OutlineColor = color -- Outline color
-            highlight.OutlineTransparency = 0 -- Outline visible
-            highlight.Parent = target.Character
+-- Function to get ESP color based on team
+local function GetESPColor(player)
+    if not _G.UseTeamColor then
+        if player.Team == LocalPlayer.Team and player.Team ~= nil then
+            return _G.FriendColor
         else
-            target.Character.GetReal.OutlineColor = color
+            return _G.EnemyColor
         end
+    else
+        return player.TeamColor.Color
     end
 end
 
-while task.wait() do
-    for i, v in pairs(players:GetPlayers()) do
-        if v ~= plr then
-            esp(v, _G.UseTeamColor and v.TeamColor.Color or ((plr.TeamColor == v.TeamColor) and _G.FriendColor or _G.EnemyColor))
-        end
+-- Function to update distance
+local function UpdateDistance(player, distanceLabel)
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return
+    end
+    
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local distance = (player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+        distanceLabel.Text = string.format("📏 %d studs", math.floor(distance))
     end
 end
+
+-- Function to update health bar
+local function UpdateHealthBar(player, healthBar, healthText)
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        local humanoid = player.Character.Humanoid
+        local healthPercent = humanoid.Health / humanoid.MaxHealth
+        
+        -- Update health bar fill
+        healthBar.HealthFill.Size = UDim2.new(healthPercent, 0, 1, 0)
+        
+        -- Change color based on health
+        if healthPercent > 0.5 then
+            healthBar.HealthFill.BackgroundColor3 = Color3.new(0, 1, 0) -- Green
+        elseif healthPercent > 0.25 then
+            healthBar.HealthFill.BackgroundColor3 = Color3.new(1, 1, 0) -- Yellow
+        else
+            healthBar.HealthFill.BackgroundColor3 = Color3.new(1, 0, 0) -- Red
+        end
+        
+        -- Update health text
+        healthText.Text = string.format("❤️ %d/%d", math.floor(humanoid.Health), math.floor(humanoid.MaxHealth))
+    end
+end
+
+-- Function to create ESP for a player
+local function CreateESP(player)
+    repeat task.wait() until player.Character
+    player.Character:WaitForChild("Humanoid")
+    
+    -- Create holder folder for player
+    local playerHolder = Instance.new("Folder")
+    playerHolder.Name = player.Name
+    playerHolder.Parent = ESPHolder
+    
+    -- Create Box ESP
+    local box = BoxTemplate:Clone()
+    box.Name = player.Name .. "_Box"
+    box.Adornee = player.Character
+    box.Visible = true
+    box.Parent = playerHolder
+    
+    -- Create Name Tag
+    local nameTag = NameTagTemplate:Clone()
+    nameTag.Name = player.Name .. "_NameTag"
+    nameTag.Enabled = _G.ShowNames
+    nameTag.Adornee = player.Character:FindFirstChild("Head") or player.Character:WaitForChild("HumanoidRootPart")
+    nameTag.Parent = playerHolder
+    
+    -- Configure name tag
+    nameTag.Name.Text = player.Name
+    local espColor = GetESPColor(player)
+    box.Color3 = espColor
+    nameTag.Name.TextColor3 = espColor
+    
+    -- Store data
+    ESPData[player] = {
+        Box = box,
+        NameTag = nameTag,
+        Holder = playerHolder,
+        Connections = {}
+    }
+    
+    -- Update function
+    local function UpdateESP()
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+            return
+        end
+        
+        -- Update distance
+        if _G.ShowDistance then
+            UpdateDistance(player, nameTag.Distance)
+        else
+            nameTag.Distance.Visible = false
+        end
+        
+        -- Update health
+        if _G.ShowHealth then
+            UpdateHealthBar(player, nameTag.HealthBar, nameTag.HealthText)
+        else
+            nameTag.HealthBar.Visible = false
+            nameTag.HealthText.Visible = false
+        end
+        
+        -- Update colors based on team changes
+        espColor = GetESPColor(player)
+        box.Color3 = espColor
+        nameTag.Name.TextColor3 = espColor
+    end
+    
+    -- Connect update events
+    table.insert(ESPData[player].Connections, player.Character.Humanoid.HealthChanged:Connect(function()
+        UpdateESP()
+    end))
+    
+    table.insert(ESPData[player].Connections, player:GetPropertyChangedSignal("Team"):Connect(function()
+        UpdateESP()
+    end))
+    
+    -- Main update loop for this player
+    table.insert(ESPData[player].Connections, RunService.Heartbeat:Connect(UpdateESP))
+    
+    return ESPData[player]
+end
+
+-- Function to remove ESP for a player
+local function RemoveESP(player)
+    if ESPData[player] then
+        -- Disconnect all connections
+        for _, connection in ipairs(ESPData[player].Connections) do
+            connection:Disconnect()
+        end
+        
+        -- Remove holder
+        if ESPData[player].Holder then
+            ESPData[player].Holder:Destroy()
+        end
+        
+        ESPData[player] = nil
+    end
+end
+
+-- Initialize ESP for all players
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        spawn(function()
+            pcall(CreateESP, player)
+        end)
+    end
+end
+
+-- Handle player added
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        if player ~= LocalPlayer then
+            pcall(CreateESP, player)
+        end
+    end)
+end)
+
+-- Handle player leaving
+Players.PlayerRemoving:Connect(function(player)
+    pcall(RemoveESP, player)
+end)
+
+-- Handle character added for existing players
+LocalPlayer.CharacterAdded:Connect(function()
+    for player, data in pairs(ESPData) do
+        if player ~= LocalPlayer then
+            RemoveESP(player)
+            pcall(CreateESP, player)
+        end
+    end
+end)
+
+-- Configuration GUI (Optional - for easy customization)
+local function CreateConfigGUI()
+    local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+    ScreenGui.Name = "ESPConfig"
+    
+    local Frame = Instance.new("Frame", ScreenGui)
+    Frame.Size = UDim2.new(0, 250, 0, 300)
+    Frame.Position = UDim2.new(0, 10, 0, 10)
+    Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    Frame.BorderSizePixel = 0
+    
+    local UICorner = Instance.new("UICorner", Frame)
+    UICorner.CornerRadius = UDim.new(0, 6)
+    
+    local Title = Instance.new("TextLabel", Frame)
+    Title.Text = "ESP Settings"
+    Title.Size = UDim2.new(1, 0, 0, 30)
+    Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    Title.TextColor3 = Color3.new(1, 1, 1)
+    Title.Font = Enum.Font.GothamBold
+    
+    -- Add toggle buttons here for ShowNames, ShowDistance, ShowHealth, etc.
+end
+
+-- Optional: Create config GUI (uncomment if needed)
+-- spawn(CreateConfigGUI)
+
+print("✅ ESP System Loaded Successfully!")
+print("📊 Features: Names, Distance, Health Bars, Team Colors")
