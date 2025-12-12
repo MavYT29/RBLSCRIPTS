@@ -1,135 +1,200 @@
--- ESP Configuration Settings
-_G.FriendColor = Color3.fromRGB(0, 255, 0)      -- Green for friends
-_G.EnemyColor = Color3.fromRGB(255, 0, 0)       -- Red for enemies
-_G.NeutralColor = Color3.fromRGB(255, 255, 0)   -- Yellow for neutral
-_G.UseTeamColor = true                           -- Use team colors
-_G.ShowNames = true                             -- Show player names
-_G.ShowDistance = true                          -- Show distance
-_G.ShowHealth = true                            -- Show health bars
-_G.BoxTransparency = 0.3                        -- Box transparency
-_G.NameTagTransparency = 0.1                    -- Name tag background transparency
-_G.MaxDistance = 500                           -- Maximum render distance
+--[[
+   SIMPLE ESP WITH F6 TOGGLE
+   Press F6 to turn ESP ON/OFF
+   Features:
+   - Team ESP (Blue)
+   - Enemy ESP (Red)
+   - Clean Name Tags
+   - Distance Display
+   - Simple Box ESP
+   - F6 Toggle
+--]]
 
--- Main ESP Handler
+-- CONFIGURATION
+local Settings = {
+    TeamColor = Color3.fromRGB(0, 120, 255),    -- Blue for teammates
+    EnemyColor = Color3.fromRGB(255, 50, 50),   -- Red for enemies
+    TextColor = Color3.fromRGB(255, 255, 255),  -- White text
+    BoxTransparency = 0.7,                      -- Box transparency
+    ShowNames = true,                           -- Show player names
+    ShowDistance = true,                        -- Show distance
+    ShowBoxes = true,                           -- Show box ESP
+    MaxDistance = 1000,                         -- Maximum render distance
+    TextSize = 14,                              -- Text size
+    Font = Enum.Font.GothamBold,                -- Font style
+    ESPEnabled = true                           -- ESP initially enabled
+}
+
+-- SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
--- Create ESP container
-local ESPHolder = Instance.new("Folder")
-ESPHolder.Name = "ESPHolder"
-ESPHolder.Parent = game.CoreGui
+-- ESP CONTAINER
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "SimpleESP"
+ESPFolder.Parent = game.CoreGui
 
--- Box ESP Template
-local BoxTemplate = Instance.new("BoxHandleAdornment")
-BoxTemplate.Name = "BoxESP"
-BoxTemplate.Size = Vector3.new(4, 6, 1)
-BoxTemplate.Color3 = Color3.new(1, 1, 1)
-BoxTemplate.Transparency = _G.BoxTransparency
-BoxTemplate.ZIndex = 1
-BoxTemplate.AlwaysOnTop = true
-BoxTemplate.Adornee = nil
-BoxTemplate.Visible = false
-
--- Name Tag Template
-local NameTagTemplate = Instance.new("BillboardGui")
-NameTagTemplate.Name = "NameTagESP"
-NameTagTemplate.Size = UDim2.new(0, 200, 0, 80)
-NameTagTemplate.AlwaysOnTop = true
-NameTagTemplate.MaxDistance = _G.MaxDistance
-NameTagTemplate.StudsOffset = Vector3.new(0, 3.5, 0)
-NameTagTemplate.Active = false
-NameTagTemplate.ClipsDescendants = false
-
--- Background Frame
-local Background = Instance.new("Frame", NameTagTemplate)
-Background.Name = "Background"
-Background.Size = UDim2.new(1, 0, 1, 0)
-Background.BackgroundColor3 = Color3.new(0, 0, 0)
-Background.BackgroundTransparency = _G.NameTagTransparency
-Background.BorderSizePixel = 0
-
--- Corner rounding
-local UICorner = Instance.new("UICorner", Background)
-UICorner.CornerRadius = UDim.new(0, 4)
-
--- Player Name Label
-local NameLabel = Instance.new("TextLabel", NameTagTemplate)
-NameLabel.Name = "Name"
-NameLabel.Size = UDim2.new(1, 0, 0.4, 0)
-NameLabel.Position = UDim2.new(0, 0, 0, 0)
-NameLabel.BackgroundTransparency = 1
-NameLabel.TextColor3 = Color3.new(1, 1, 1)
-NameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-NameLabel.TextStrokeTransparency = 0.5
-NameLabel.TextSize = 16
-NameLabel.Font = Enum.Font.GothamBold
-NameLabel.TextXAlignment = Enum.TextXAlignment.Center
-
--- Distance Label
-local DistanceLabel = Instance.new("TextLabel", NameTagTemplate)
-DistanceLabel.Name = "Distance"
-DistanceLabel.Size = UDim2.new(1, 0, 0.3, 0)
-DistanceLabel.Position = UDim2.new(0, 0, 0.4, 0)
-DistanceLabel.BackgroundTransparency = 1
-DistanceLabel.TextColor3 = Color3.new(0.8, 0.8, 1)
-DistanceLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-DistanceLabel.TextStrokeTransparency = 0.5
-DistanceLabel.TextSize = 14
-DistanceLabel.Font = Enum.Font.Gotham
-DistanceLabel.TextXAlignment = Enum.TextXAlignment.Center
-
--- Health Bar Container
-local HealthBarContainer = Instance.new("Frame", NameTagTemplate)
-HealthBarContainer.Name = "HealthBar"
-HealthBarContainer.Size = UDim2.new(0.8, 0, 0.2, 0)
-HealthBarContainer.Position = UDim2.new(0.1, 0, 0.75, 0)
-HealthBarContainer.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-HealthBarContainer.BorderSizePixel = 0
-
-local HealthBarCorner = Instance.new("UICorner", HealthBarContainer)
-HealthBarCorner.CornerRadius = UDim.new(1, 0)
-
--- Health Fill
-local HealthFill = Instance.new("Frame", HealthBarContainer)
-HealthFill.Name = "HealthFill"
-HealthFill.Size = UDim2.new(1, 0, 1, 0)
-HealthFill.BackgroundColor3 = Color3.new(0, 1, 0)
-HealthFill.BorderSizePixel = 0
-
-local HealthFillCorner = Instance.new("UICorner", HealthFill)
-HealthFillCorner.CornerRadius = UDim.new(1, 0)
-
--- Health Text
-local HealthText = Instance.new("TextLabel", NameTagTemplate)
-HealthText.Name = "HealthText"
-HealthText.Size = UDim2.new(1, 0, 0.3, 0)
-HealthText.Position = UDim2.new(0, 0, 0.7, 0)
-HealthText.BackgroundTransparency = 1
-HealthText.TextColor3 = Color3.new(1, 1, 1)
-HealthText.TextStrokeColor3 = Color3.new(0, 0, 0)
-HealthText.TextStrokeTransparency = 0.5
-HealthText.TextSize = 12
-HealthText.Font = Enum.Font.Gotham
-HealthText.TextXAlignment = Enum.TextXAlignment.Center
-
--- Store ESP data
+-- STORAGE
 local ESPData = {}
+local ESPConnections = {}
 
--- Function to get ESP color based on team
-local function GetESPColor(player)
-    if not _G.UseTeamColor then
-        if player.Team == LocalPlayer.Team and player.Team ~= nil then
-            return _G.FriendColor
-        else
-            return _G.EnemyColor
-        end
-    else
-        return player.TeamColor.Color
-    end
+-- NOTIFICATION FUNCTION
+local function ShowNotification(message, duration)
+    duration = duration or 3
+    
+    -- Create notification GUI
+    local screenGui = Instance.new("ScreenGui", game.CoreGui)
+    screenGui.Name = "ESPNotification"
+    
+    local frame = Instance.new("Frame", screenGui)
+    frame.Size = UDim2.new(0, 300, 0, 60)
+    frame.Position = UDim2.new(0.5, -150, 0.1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 0
+    
+    local corner = Instance.new("UICorner", frame)
+    corner.CornerRadius = UDim.new(0, 8)
+    
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = Color3.fromRGB(100, 100, 255)
+    stroke.Thickness = 2
+    
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = message
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextSize = 18
+    label.Font = Enum.Font.GothamBold
+    label.TextStrokeTransparency = 0.5
+    
+    -- Animate
+    frame.BackgroundTransparency = 1
+    label.TextTransparency = 1
+    
+    local fadeIn = game:GetService("TweenService"):Create(frame, TweenInfo.new(0.3), {BackgroundTransparency = 0})
+    local textFadeIn = game:GetService("TweenService"):Create(label, TweenInfo.new(0.3), {TextTransparency = 0})
+    
+    fadeIn:Play()
+    textFadeIn:Play()
+    
+    fadeIn.Completed:Wait()
+    
+    wait(duration)
+    
+    local fadeOut = game:GetService("TweenService"):Create(frame, TweenInfo.new(0.3), {BackgroundTransparency = 1})
+    local textFadeOut = game:GetService("TweenService"):Create(label, TweenInfo.new(0.3), {TextTransparency = 1})
+    
+    fadeOut:Play()
+    textFadeOut:Play()
+    
+    fadeOut.Completed:Wait()
+    screenGui:Destroy()
 end
 
--- Function to update distance
+-- FUNCTION TO GET ESP COLOR
+local function GetPlayerColor(player)
+    if player == LocalPlayer then return nil end
+    
+    local localTeam = LocalPlayer.Team
+    local playerTeam = player.Team
+    
+    if localTeam and playerTeam then
+        if localTeam == playerTeam then
+            return Settings.TeamColor  -- Teammate
+        else
+            return Settings.EnemyColor -- Enemy
+        end
+    end
+    
+    return Settings.EnemyColor -- Default to enemy if no teams
+end
+
+-- CREATE BOX ESP
+local function CreateBoxESP(player, character)
+    local box = Instance.new("BoxHandleAdornment")
+    box.Name = player.Name .. "_Box"
+    box.Size = Vector3.new(4, 6, 1)
+    box.Color3 = GetPlayerColor(player)
+    box.Transparency = Settings.BoxTransparency
+    box.ZIndex = 1
+    box.AlwaysOnTop = true
+    box.Adornee = character
+    box.Visible = Settings.ShowBoxes and Settings.ESPEnabled
+    box.Parent = ESPFolder
+    
+    return box
+end
+
+-- CREATE NAME TAG
+local function CreateNameTag(player, character)
+    local head = character:WaitForChild("Head")
+    
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = player.Name .. "_Tag"
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.AlwaysOnTop = true
+    billboard.MaxDistance = Settings.MaxDistance
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Adornee = head
+    billboard.Enabled = Settings.ShowNames and Settings.ESPEnabled
+    billboard.Parent = ESPFolder
+    
+    -- Background
+    local background = Instance.new("Frame")
+    background.Name = "Background"
+    background.Size = UDim2.new(1, 0, 1, 0)
+    background.BackgroundColor3 = Color3.new(0, 0, 0)
+    background.BackgroundTransparency = 0.3
+    background.BorderSizePixel = 0
+    background.Parent = billboard
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = background
+    
+    -- Name Label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "Name"
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = GetPlayerColor(player)
+    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    nameLabel.TextStrokeTransparency = 0.5
+    nameLabel.TextSize = Settings.TextSize
+    nameLabel.Font = Settings.Font
+    nameLabel.Text = player.Name
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+    nameLabel.Parent = billboard
+    
+    -- Distance Label
+    local distanceLabel = Instance.new("TextLabel")
+    distanceLabel.Name = "Distance"
+    distanceLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    distanceLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    distanceLabel.BackgroundTransparency = 1
+    distanceLabel.TextColor3 = Settings.TextColor
+    distanceLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    distanceLabel.TextStrokeTransparency = 0.5
+    distanceLabel.TextSize = Settings.TextSize - 2
+    distanceLabel.Font = Settings.Font
+    distanceLabel.Text = "Loading..."
+    distanceLabel.TextXAlignment = Enum.TextXAlignment.Center
+    distanceLabel.Visible = Settings.ShowDistance
+    distanceLabel.Parent = billboard
+    
+    return {
+        Billboard = billboard,
+        NameLabel = nameLabel,
+        DistanceLabel = distanceLabel
+    }
+end
+
+-- UPDATE DISTANCE
 local function UpdateDistance(player, distanceLabel)
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         return
@@ -137,189 +202,267 @@ local function UpdateDistance(player, distanceLabel)
     
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local distance = (player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-        distanceLabel.Text = string.format("📏 %d studs", math.floor(distance))
-    end
-end
-
--- Function to update health bar
-local function UpdateHealthBar(player, healthBar, healthText)
-    if player.Character and player.Character:FindFirstChild("Humanoid") then
-        local humanoid = player.Character.Humanoid
-        local healthPercent = humanoid.Health / humanoid.MaxHealth
+        distanceLabel.Text = string.format("[%d studs]", math.floor(distance))
         
-        -- Update health bar fill
-        healthBar.HealthFill.Size = UDim2.new(healthPercent, 0, 1, 0)
-        
-        -- Change color based on health
-        if healthPercent > 0.5 then
-            healthBar.HealthFill.BackgroundColor3 = Color3.new(0, 1, 0) -- Green
-        elseif healthPercent > 0.25 then
-            healthBar.HealthFill.BackgroundColor3 = Color3.new(1, 1, 0) -- Yellow
+        -- Hide if too far
+        if distance > Settings.MaxDistance then
+            distanceLabel.Visible = false
         else
-            healthBar.HealthFill.BackgroundColor3 = Color3.new(1, 0, 0) -- Red
+            distanceLabel.Visible = Settings.ShowDistance and Settings.ESPEnabled
         end
-        
-        -- Update health text
-        healthText.Text = string.format("❤️ %d/%d", math.floor(humanoid.Health), math.floor(humanoid.MaxHealth))
     end
 end
 
--- Function to create ESP for a player
+-- CREATE ESP FOR PLAYER
 local function CreateESP(player)
-    repeat task.wait() until player.Character
-    player.Character:WaitForChild("Humanoid")
+    if player == LocalPlayer then return end
     
-    -- Create holder folder for player
-    local playerHolder = Instance.new("Folder")
-    playerHolder.Name = player.Name
-    playerHolder.Parent = ESPHolder
+    local character = player.Character
+    if not character then
+        player.CharacterAdded:Wait()
+        character = player.Character
+    end
     
-    -- Create Box ESP
-    local box = BoxTemplate:Clone()
-    box.Name = player.Name .. "_Box"
-    box.Adornee = player.Character
-    box.Visible = true
-    box.Parent = playerHolder
+    character:WaitForChild("Humanoid")
     
-    -- Create Name Tag
-    local nameTag = NameTagTemplate:Clone()
-    nameTag.Name = player.Name .. "_NameTag"
-    nameTag.Enabled = _G.ShowNames
-    nameTag.Adornee = player.Character:FindFirstChild("Head") or player.Character:WaitForChild("HumanoidRootPart")
-    nameTag.Parent = playerHolder
+    local espData = {}
     
-    -- Configure name tag
-    nameTag.Name.Text = player.Name
-    local espColor = GetESPColor(player)
-    box.Color3 = espColor
-    nameTag.Name.TextColor3 = espColor
+    -- Create ESP elements
+    if Settings.ShowBoxes then
+        espData.Box = CreateBoxESP(player, character)
+    end
+    
+    if Settings.ShowNames then
+        espData.NameTag = CreateNameTag(player, character)
+    end
     
     -- Store data
-    ESPData[player] = {
-        Box = box,
-        NameTag = nameTag,
-        Holder = playerHolder,
-        Connections = {}
-    }
+    ESPData[player] = espData
     
-    -- Update function
-    local function UpdateESP()
+    -- Update loop
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if not Settings.ESPEnabled then return end
         if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
             return
         end
         
         -- Update distance
-        if _G.ShowDistance then
-            UpdateDistance(player, nameTag.Distance)
-        else
-            nameTag.Distance.Visible = false
+        if espData.NameTag then
+            UpdateDistance(player, espData.NameTag.DistanceLabel)
         end
         
-        -- Update health
-        if _G.ShowHealth then
-            UpdateHealthBar(player, nameTag.HealthBar, nameTag.HealthText)
-        else
-            nameTag.HealthBar.Visible = false
-            nameTag.HealthText.Visible = false
+        -- Update colors if team changed
+        local newColor = GetPlayerColor(player)
+        if espData.Box then
+            espData.Box.Color3 = newColor
+            espData.Box.Visible = Settings.ShowBoxes and Settings.ESPEnabled
         end
-        
-        -- Update colors based on team changes
-        espColor = GetESPColor(player)
-        box.Color3 = espColor
-        nameTag.Name.TextColor3 = espColor
-    end
+        if espData.NameTag then
+            espData.NameTag.NameLabel.TextColor3 = newColor
+            espData.NameTag.Billboard.Enabled = Settings.ShowNames and Settings.ESPEnabled
+        end
+    end)
     
-    -- Connect update events
-    table.insert(ESPData[player].Connections, player.Character.Humanoid.HealthChanged:Connect(function()
-        UpdateESP()
-    end))
+    -- Store connection
+    espData.Connection = connection
     
-    table.insert(ESPData[player].Connections, player:GetPropertyChangedSignal("Team"):Connect(function()
-        UpdateESP()
-    end))
-    
-    -- Main update loop for this player
-    table.insert(ESPData[player].Connections, RunService.Heartbeat:Connect(UpdateESP))
-    
-    return ESPData[player]
+    return espData
 end
 
--- Function to remove ESP for a player
+-- REMOVE ESP FOR PLAYER
 local function RemoveESP(player)
     if ESPData[player] then
-        -- Disconnect all connections
-        for _, connection in ipairs(ESPData[player].Connections) do
-            connection:Disconnect()
+        -- Disconnect update loop
+        if ESPData[player].Connection then
+            ESPData[player].Connection:Disconnect()
         end
         
-        -- Remove holder
-        if ESPData[player].Holder then
-            ESPData[player].Holder:Destroy()
+        -- Clear all ESP elements
+        for _, element in pairs(ESPData[player]) do
+            if element and element.Parent then
+                element:Destroy()
+            end
         end
         
         ESPData[player] = nil
     end
 end
 
--- Initialize ESP for all players
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        spawn(function()
-            pcall(CreateESP, player)
-        end)
+-- TOGGLE ESP FUNCTION
+local function ToggleESP()
+    Settings.ESPEnabled = not Settings.ESPEnabled
+    
+    -- Update all ESP elements
+    for player, espData in pairs(ESPData) do
+        if espData.Box then
+            espData.Box.Visible = Settings.ShowBoxes and Settings.ESPEnabled
+        end
+        if espData.NameTag then
+            espData.NameTag.Billboard.Enabled = Settings.ShowNames and Settings.ESPEnabled
+            if espData.NameTag.DistanceLabel then
+                espData.NameTag.DistanceLabel.Visible = Settings.ShowDistance and Settings.ESPEnabled
+            end
+        end
+    end
+    
+    -- Show notification
+    local status = Settings.ESPEnabled and "ENABLED" or "DISABLED"
+    local color = Settings.ESPEnabled and "🟢" or "🔴"
+    ShowNotification(color .. " ESP " .. status, 2)
+    
+    print("ESP " .. (Settings.ESPEnabled and "Enabled" or "Disabled"))
+end
+
+-- INITIALIZE ALL PLAYERS
+local function InitializePlayers()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            spawn(function()
+                pcall(CreateESP, player)
+            end)
+        end
     end
 end
 
--- Handle player added
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        if player ~= LocalPlayer then
-            pcall(CreateESP, player)
+-- F6 KEYBIND
+local F6Pressed = false
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.F6 then
+        if not F6Pressed then
+            F6Pressed = true
+            ToggleESP()
+            
+            -- Debounce
+            wait(0.3)
+            F6Pressed = false
         end
+    end
+end)
+
+-- PLAYER ADDED
+Players.PlayerAdded:Connect(function(player)
+    local charAddedConn
+    charAddedConn = player.CharacterAdded:Connect(function()
+        wait(0.5) -- Small delay for character to fully load
+        pcall(function()
+            CreateESP(player)
+        end)
+    end)
+    
+    -- Store connection
+    table.insert(ESPConnections, charAddedConn)
+end)
+
+-- PLAYER REMOVING
+Players.PlayerRemoving:Connect(function(player)
+    pcall(function()
+        RemoveESP(player)
     end)
 end)
 
--- Handle player leaving
-Players.PlayerRemoving:Connect(function(player)
-    pcall(RemoveESP, player)
+-- CHARACTER REMOVED
+LocalPlayer.CharacterRemoving:Connect(function()
+    -- Clean up all ESP when local player dies
+    for player in pairs(ESPData) do
+        RemoveESP(player)
+    end
+    ESPData = {}
 end)
 
--- Handle character added for existing players
-LocalPlayer.CharacterAdded:Connect(function()
-    for player, data in pairs(ESPData) do
-        if player ~= LocalPlayer then
-            RemoveESP(player)
-            pcall(CreateESP, player)
+-- TEAM CHANGED
+local function HandleTeamChange(player)
+    if ESPData[player] then
+        local color = GetPlayerColor(player)
+        
+        if ESPData[player].Box then
+            ESPData[player].Box.Color3 = color
+        end
+        
+        if ESPData[player].NameTag then
+            ESPData[player].NameTag.NameLabel.TextColor3 = color
         end
     end
-end)
-
--- Configuration GUI (Optional - for easy customization)
-local function CreateConfigGUI()
-    local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-    ScreenGui.Name = "ESPConfig"
-    
-    local Frame = Instance.new("Frame", ScreenGui)
-    Frame.Size = UDim2.new(0, 250, 0, 300)
-    Frame.Position = UDim2.new(0, 10, 0, 10)
-    Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    Frame.BorderSizePixel = 0
-    
-    local UICorner = Instance.new("UICorner", Frame)
-    UICorner.CornerRadius = UDim.new(0, 6)
-    
-    local Title = Instance.new("TextLabel", Frame)
-    Title.Text = "ESP Settings"
-    Title.Size = UDim2.new(1, 0, 0, 30)
-    Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    Title.TextColor3 = Color3.new(1, 1, 1)
-    Title.Font = Enum.Font.GothamBold
-    
-    -- Add toggle buttons here for ShowNames, ShowDistance, ShowHealth, etc.
 end
 
--- Optional: Create config GUI (uncomment if needed)
--- spawn(CreateConfigGUI)
+-- CONNECT TEAM CHANGE EVENTS
+for _, player in ipairs(Players:GetPlayers()) do
+    local teamConn = player:GetPropertyChangedSignal("Team"):Connect(function()
+        HandleTeamChange(player)
+    end)
+    table.insert(ESPConnections, teamConn)
+end
 
-print("✅ ESP System Loaded Successfully!")
-print("📊 Features: Names, Distance, Health Bars, Team Colors")
+Players.PlayerAdded:Connect(function(player)
+    local teamConn = player:GetPropertyChangedSignal("Team"):Connect(function()
+        HandleTeamChange(player)
+    end)
+    table.insert(ESPConnections, teamConn)
+end)
+
+-- CLEANUP FUNCTION
+local function CleanupESP()
+    -- Remove all ESP elements
+    for player in pairs(ESPData) do
+        RemoveESP(player)
+    end
+    
+    -- Disconnect all connections
+    for _, conn in ipairs(ESPConnections) do
+        if conn then
+            conn:Disconnect()
+        end
+    end
+    
+    -- Clear folder
+    ESPFolder:Destroy()
+    
+    print("ESP Cleaned Up")
+end
+
+-- AUTO INITIALIZE
+wait(2) -- Wait for game to fully load
+InitializePlayers()
+
+-- INITIAL NOTIFICATION
+spawn(function()
+    wait(1)
+    ShowNotification("ESP LOADED\nPress F6 to toggle", 3)
+end)
+
+-- CREATE SIMPLE UI INDICATOR
+spawn(function()
+    local indicatorGui = Instance.new("ScreenGui", game.CoreGui)
+    indicatorGui.Name = "ESPIndicator"
+    indicatorGui.ResetOnSpawn = false
+    
+    local indicator = Instance.new("Frame", indicatorGui)
+    indicator.Size = UDim2.new(0, 120, 0, 30)
+    indicator.Position = UDim2.new(1, -130, 0, 10)
+    indicator.BackgroundColor3 = Settings.ESPEnabled and Color3.fromRGB(0, 100, 0) or Color3.fromRGB(100, 0, 0)
+    indicator.BorderSizePixel = 0
+    
+    local corner = Instance.new("UICorner", indicator)
+    corner.CornerRadius = UDim.new(0, 6)
+    
+    local stroke = Instance.new("UIStroke", indicator)
+    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Thickness = 2
+    
+    local label = Instance.new("TextLabel", indicator)
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "ESP: " .. (Settings.ESPEnabled and "ON" or "OFF")
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextSize = 14
+    label.Font = Enum.Font.GothamBold
+    
+    -- Update indicator when ESP is toggled
+    while true do
+        indicator.BackgroundColor3 = Settings.ESPEnabled and Color3.fromRGB(0, 100, 0) or Color3.fromRGB(100, 0, 0)
+        label.Text = "ESP: " .. (Settings.ESPEnabled and "ON" or "OFF")
+        wait(0.1)
+    end
+end)
