@@ -7,9 +7,9 @@ local HttpService = game:GetService("HttpService")
 -- CONSTANTS
 Config.RAYCAST_COOLDOWN = 0.2
 Config.MARKER_MAX_PER_STEP = 12
-Config.TARGET_SYNC_INTERVAL = 0.1
+Config.TARGET_SYNC_INTERVAL = 0.25
 Config.NPC_REFRESH_INTERVAL = 0.5
-Config.TARGET_BOX_SIZE = Vector3.new(25, 25, 25) -- Size of the adjusted target bounds
+Config.TARGET_BOX_SIZE = Vector3.new(15, 15, 15) -- Size of the adjusted target bounds
 Config.MAX_NPC_DETECTION_RADIUS = 3000
 Config.npcDetectionRadius = Config.MAX_NPC_DETECTION_RADIUS
 Config.CONFIG_FILE = "brm5_pve_config.json"
