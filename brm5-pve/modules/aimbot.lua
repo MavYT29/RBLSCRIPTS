@@ -1,5 +1,5 @@
 -- Aimbot Module
--- Camera-based aiming system that locks onto enemies
+-- Mouse-based aiming system that locks onto enemies
 
 local Aimbot = {}
 
@@ -14,16 +14,20 @@ Aimbot.priorityMode = "distance"  -- "distance" or "closestToCrosshair"
 Aimbot.teamCheck = true           -- Only target enemies
 Aimbot.hitPart = "Head"           -- "Head", "HumanoidRootPart", or "Random"
 Aimbot.aimKey = Enum.KeyCode.RightShift  -- Key to hold for aimbot (nil = always on)
+Aimbot.aimMethod = "mouse"        -- "mouse" or "mousescript" (MouseScript is faster for some executors)
+Aimbot.autoFire = false           -- Automatically fire when locked on target
+Aimbot.autoFireDelay = 0.05       -- Delay between shots in seconds
+Aimbot.autoFireKey = Enum.KeyCode.MouseButton1 -- Mouse button to simulate
 
 -- Internal variables
 Aimbot.fovCircle = nil
 Aimbot.currentTarget = nil
-Aimbot.latestCameraCFrame = nil
-Aimbot.isAiming = false
 Aimbot.keyDown = false
 Aimbot.connections = {}
 Aimbot.screenGui = nil
-Aimbot.cameraOffset = Vector3.new(0, 0, 0) -- Camera shake compensation
+Aimbot.lastAutoFireTime = 0
+Aimbot.mousePosition = Vector2.new(0, 0)
+Aimbot.targetScreenPos = nil
 
 -- Get valid hit parts from an NPC
 function Aimbot.getHitPart(npc)
@@ -124,10 +128,21 @@ function Aimbot.predictPosition(targetPart, bulletSpeed)
         targetVelocity = humanoid:GetVelocity()
     end
     
-    local distance = (Services.camera.CFrame.Position - targetPart.Position).Magnitude
+    local camera = Services and Services.camera or workspace.CurrentCamera
+    local distance = camera and (camera.CFrame.Position - targetPart.Position).Magnitude or 100
     local travelTime = distance / (bulletSpeed or 2500) -- Default bullet speed
     
     return targetPart.Position + (targetVelocity * travelTime * Aimbot.predictionMultiplier)
+end
+
+-- Get screen position of target with prediction
+function Aimbot.getTargetScreenPosition(camera, target)
+    if not target or not target.part then
+        return nil, false
+    end
+    
+    local aimPos = Aimbot.predictPosition(target.part, 2500)
+    return Aimbot.worldToScreen(camera, aimPos)
 end
 
 -- Find best target based on priority mode
@@ -146,7 +161,7 @@ function Aimbot.findBestTarget(targets, camera, localPlayer)
             local angle = Aimbot.getAngleToTarget(camera, targetPart.Position)
             local distance = Aimbot.getDistanceToTarget(localPlayer, targetPart.Position)
             
-            -- Check if within FOV
+            -- Check if within FOV (convert angle to pixels roughly)
             local fovCondition = Aimbot.fovRadius >= 999 or angle <= math.rad(Aimbot.fovRadius)
             
             if onScreen and fovCondition then
@@ -154,11 +169,13 @@ function Aimbot.findBestTarget(targets, camera, localPlayer)
                     if distance < bestScore then
                         bestScore = distance
                         bestTarget = target
+                        Aimbot.targetScreenPos = screenPos
                     end
                 else -- closestToCrosshair (angle based)
                     if angle < bestScore then
                         bestScore = angle
                         bestTarget = target
+                        Aimbot.targetScreenPos = screenPos
                     end
                 end
             end
@@ -168,45 +185,79 @@ function Aimbot.findBestTarget(targets, camera, localPlayer)
     return bestTarget
 end
 
--- Get aim position with prediction
-function Aimbot.getAimPosition(target, bulletSpeed)
-    if not target or not target.part then
-        return nil
+-- Move mouse to target position (MouseScript method - faster)
+function Aimbot.moveMouseMouseScript(targetX, targetY, smoothness)
+    if type(mousemoveabs) ~= "function" then
+        return false
     end
     
-    local targetPart = target.part
-    local predictedPos = Aimbot.predictPosition(targetPart, bulletSpeed)
+    local currentX, currentY = mouseposition()
+    local deltaX = targetX - currentX
+    local deltaY = targetY - currentY
     
-    return predictedPos
-end
-
--- Apply smooth aiming
-function Aimbot.smoothAim(currentCFrame, targetCFrame, smoothness)
-    if smoothness <= 0 then
-        return targetCFrame
+    if smoothness > 0 then
+        local step = 1 - smoothness
+        local newX = currentX + (deltaX * step)
+        local newY = currentY + (deltaY * step)
+        mousemoveabs(newX, newY)
+    else
+        mousemoveabs(targetX, targetY)
     end
     
-    local smoothFactor = math.clamp(1 - smoothness, 0.05, 0.95)
-    
-    -- Interpolate position
-    local newPosition = currentCFrame.Position:Lerp(targetCFrame.Position, smoothFactor)
-    
-    -- Interpolate rotation using quaternion slerp equivalent
-    local currentLook = currentCFrame.LookVector
-    local targetLook = targetCFrame.LookVector
-    local newLook = currentLook:Lerp(targetLook, smoothFactor).Unit
-    
-    return CFrame.new(newPosition, newPosition + newLook)
+    return true
 end
 
--- Calculate camera CFrame to aim at target
-function Aimbot.calculateAimCFrame(camera, targetPosition)
-    local cameraPos = camera.CFrame.Position
-    local direction = (targetPosition - cameraPos).Unit
-    return CFrame.new(cameraPos, cameraPos + direction)
+-- Move mouse to target position (Standard method)
+function Aimbot.moveMouseStandard(targetX, targetY, smoothness, userInputService)
+    if not userInputService then
+        return false
+    end
+    
+    local currentPos = userInputService:GetMouseLocation()
+    local deltaX = targetX - currentPos.X
+    local deltaY = targetY - currentPos.Y
+    
+    if smoothness > 0 then
+        local step = 1 - smoothness
+        deltaX = deltaX * step
+        deltaY = deltaY * step
+    end
+    
+    if deltaX ~= 0 or deltaY ~= 0 then
+        -- Use mousemoverel if available, otherwise can't move mouse this way
+        if type(mousemoverel) == "function" then
+            mousemoverel(deltaX, deltaY)
+            return true
+        end
+    end
+    
+    return false
 end
 
--- Main aimbot update
+-- Auto fire when aiming at target
+function Aimbot.autoFireHandler(services)
+    if not Aimbot.autoFire or not Aimbot.currentTarget then
+        return
+    end
+    
+    local currentTime = tick()
+    if currentTime - Aimbot.lastAutoFireTime >= Aimbot.autoFireDelay then
+        -- Simulate mouse button click
+        local virtualInput = services.UserInputService
+        if virtualInput then
+            -- Fire the weapon
+            local args = {
+                [1] = Aimbot.autoFireKey,
+                [2] = true,
+                [3] = false
+            }
+            virtualInput:SendInput(input)
+            Aimbot.lastAutoFireTime = currentTime
+        end
+    end
+end
+
+-- Main aimbot update (mouse-based)
 function Aimbot.update(npcManager, services, config)
     if not Aimbot.enabled then
         if Aimbot.fovCircle then
@@ -218,7 +269,7 @@ function Aimbot.update(npcManager, services, config)
     
     local camera = services.camera
     local localPlayer = services.localPlayer
-    local workspace = services.Workspace
+    local userInputService = services.UserInputService
     
     if not camera or not localPlayer then
         return
@@ -232,8 +283,8 @@ function Aimbot.update(npcManager, services, config)
         Aimbot.fovCircle.Visible = Aimbot.showFovCircle and Aimbot.enabled
         if Aimbot.fovCircle.Visible then
             Aimbot.fovCircle.Position = UDim2.fromOffset(
-                camera.ViewportSize.X / 2,
-                camera.ViewportSize.Y / 2
+                camera.ViewportSize.X / 2 - Aimbot.fovRadius,
+                camera.ViewportSize.Y / 2 - Aimbot.fovRadius
             )
         end
     end
@@ -242,30 +293,36 @@ function Aimbot.update(npcManager, services, config)
     local targets = Aimbot.getValidTargets(npcManager, localPlayer, camera)
     local bestTarget = Aimbot.findBestTarget(targets, camera, localPlayer)
     
-    if bestTarget and shouldAim then
+    if bestTarget and shouldAim and Aimbot.targetScreenPos then
         Aimbot.currentTarget = bestTarget
         
-        local aimPos = Aimbot.getAimPosition(bestTarget, 2500)
-        if aimPos then
-            local targetCFrame = Aimbot.calculateAimCFrame(camera, aimPos)
-            local smoothAmount = Aimbot.smoothness
+        local targetPos = Aimbot.targetScreenPos
+        local centerX = camera.ViewportSize.X / 2
+        local centerY = camera.ViewportSize.Y / 2
+        
+        -- Check if target is within FOV circle (pixel distance)
+        local dx = targetPos.X - centerX
+        local dy = targetPos.Y - centerY
+        local distanceFromCenter = math.sqrt(dx * dx + dy * dy)
+        
+        if distanceFromCenter <= Aimbot.fovRadius then
+            -- Move mouse to target
+            local success = false
             
-            if not Aimbot.keyDown then
-                -- If no keybind, use smoothness directly
-                smoothAmount = Aimbot.smoothness
+            if Aimbot.aimMethod == "mousescript" and type(mousemoveabs) == "function" then
+                success = Aimbot.moveMouseMouseScript(targetPos.X, targetPos.Y, Aimbot.smoothness)
+            else
+                success = Aimbot.moveMouseStandard(targetPos.X, targetPos.Y, Aimbot.smoothness, userInputService)
             end
             
-            -- Apply smoothing to camera
-            local newCFrame = Aimbot.smoothAim(camera.CFrame, targetCFrame, smoothAmount)
-            
-            -- Only update if changed significantly
-            if (newCFrame.Position - camera.CFrame.Position).Magnitude > 0.01 or
-               (newCFrame.LookVector - camera.CFrame.LookVector).Magnitude > 0.001 then
-                camera.CFrame = newCFrame
+            -- Auto fire if enabled
+            if success and Aimbot.autoFire then
+                Aimbot.autoFireHandler(services)
             end
         end
     else
         Aimbot.currentTarget = nil
+        Aimbot.targetScreenPos = nil
     end
 end
 
@@ -347,6 +404,7 @@ function Aimbot.setEnabled(enabled, services, screenGui)
     
     if not enabled then
         Aimbot.currentTarget = nil
+        Aimbot.targetScreenPos = nil
     end
 end
 
@@ -375,6 +433,18 @@ function Aimbot.setAimKey(keyCode)
     Aimbot.aimKey = keyCode
 end
 
+-- Set aim method
+function Aimbot.setAimMethod(method)
+    if method == "mouse" or method == "mousescript" then
+        Aimbot.aimMethod = method
+    end
+end
+
+-- Set auto fire
+function Aimbot.setAutoFire(enabled)
+    Aimbot.autoFire = enabled
+end
+
 -- Setup keybind listeners
 function Aimbot.setupKeybinds(services)
     -- Clear existing connections
@@ -398,6 +468,7 @@ function Aimbot.setupKeybinds(services)
         if Aimbot.aimKey and input.KeyCode == Aimbot.aimKey then
             Aimbot.keyDown = false
             Aimbot.currentTarget = nil
+            Aimbot.targetScreenPos = nil
         end
     end)
     table.insert(Aimbot.connections, inputEndedConn)
@@ -416,6 +487,7 @@ function Aimbot.cleanup()
     end
     
     Aimbot.currentTarget = nil
+    Aimbot.targetScreenPos = nil
     Aimbot.keyDown = false
     Aimbot.enabled = false
 end
