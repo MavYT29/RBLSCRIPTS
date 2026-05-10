@@ -17,7 +17,6 @@ Aimbot.aimKey = Enum.KeyCode.RightShift  -- Key to hold for aimbot (nil = always
 Aimbot.aimMethod = "mouse"        -- "mouse" or "mousescript" (MouseScript is faster for some executors)
 Aimbot.autoFire = false           -- Automatically fire when locked on target
 Aimbot.autoFireDelay = 0.05       -- Delay between shots in seconds
-Aimbot.autoFireKey = Enum.KeyCode.MouseButton1 -- Mouse button to simulate
 
 -- Internal variables
 Aimbot.fovCircle = nil
@@ -26,8 +25,8 @@ Aimbot.keyDown = false
 Aimbot.connections = {}
 Aimbot.screenGui = nil
 Aimbot.lastAutoFireTime = 0
-Aimbot.mousePosition = Vector2.new(0, 0)
 Aimbot.targetScreenPos = nil
+Aimbot.services = nil
 
 -- Get valid hit parts from an NPC
 function Aimbot.getHitPart(npc)
@@ -43,7 +42,7 @@ function Aimbot.getHitPart(npc)
 end
 
 -- Check if a target is valid
-function Aimbot.isValidTarget(npc, targetPart, localPlayer, camera)
+function Aimbot.isValidTarget(npc, targetPart, localPlayer)
     if not npc or not targetPart or not targetPart.Parent then
         return false
     end
@@ -71,13 +70,13 @@ function Aimbot.isValidTarget(npc, targetPart, localPlayer, camera)
 end
 
 -- Get all valid targets from NPCManager
-function Aimbot.getValidTargets(npcManager, localPlayer, camera)
+function Aimbot.getValidTargets(npcManager, localPlayer)
     local targets = {}
     local activeNPCs = npcManager.getActiveNPCs and npcManager:getActiveNPCs() or {}
     
     for npc, data in pairs(activeNPCs) do
         local targetPart = Aimbot.getHitPart(npc)
-        if Aimbot.isValidTarget(npc, targetPart, localPlayer, camera) then
+        if Aimbot.isValidTarget(npc, targetPart, localPlayer) then
             table.insert(targets, {
                 npc = npc,
                 part = targetPart,
@@ -128,7 +127,7 @@ function Aimbot.predictPosition(targetPart, bulletSpeed)
         targetVelocity = humanoid:GetVelocity()
     end
     
-    local camera = Services and Services.camera or workspace.CurrentCamera
+    local camera = Aimbot.services and Aimbot.services.camera or workspace.CurrentCamera
     local distance = camera and (camera.CFrame.Position - targetPart.Position).Magnitude or 100
     local travelTime = distance / (bulletSpeed or 2500) -- Default bullet speed
     
@@ -161,7 +160,7 @@ function Aimbot.findBestTarget(targets, camera, localPlayer)
             local angle = Aimbot.getAngleToTarget(camera, targetPart.Position)
             local distance = Aimbot.getDistanceToTarget(localPlayer, targetPart.Position)
             
-            -- Check if within FOV (convert angle to pixels roughly)
+            -- Check if within FOV
             local fovCondition = Aimbot.fovRadius >= 999 or angle <= math.rad(Aimbot.fovRadius)
             
             if onScreen and fovCondition then
@@ -224,7 +223,6 @@ function Aimbot.moveMouseStandard(targetX, targetY, smoothness, userInputService
     end
     
     if deltaX ~= 0 or deltaY ~= 0 then
-        -- Use mousemoverel if available, otherwise can't move mouse this way
         if type(mousemoverel) == "function" then
             mousemoverel(deltaX, deltaY)
             return true
@@ -235,23 +233,36 @@ function Aimbot.moveMouseStandard(targetX, targetY, smoothness, userInputService
 end
 
 -- Auto fire when aiming at target
-function Aimbot.autoFireHandler(services)
+function Aimbot.autoFireHandler()
     if not Aimbot.autoFire or not Aimbot.currentTarget then
         return
     end
     
     local currentTime = tick()
     if currentTime - Aimbot.lastAutoFireTime >= Aimbot.autoFireDelay then
-        -- Simulate mouse button click
-        local virtualInput = services.UserInputService
-        if virtualInput then
-            -- Fire the weapon
-            local args = {
-                [1] = Aimbot.autoFireKey,
-                [2] = true,
-                [3] = false
+        -- Simulate mouse button click using UserInputService
+        if Aimbot.services and Aimbot.services.UserInputService then
+            local inputService = Aimbot.services.UserInputService
+            
+            -- Send mouse button down
+            local downArgs = {
+                UserInputType = Enum.UserInputType.MouseButton1
             }
-            virtualInput:SendInput(input)
+            pcall(function()
+                inputService:SendInput(downArgs)
+            end)
+            
+            -- Small delay then send up
+            task.delay(0.01, function()
+                local upArgs = {
+                    UserInputType = Enum.UserInputType.MouseButton1,
+                    UserInputState = Enum.UserInputState.End
+                }
+                pcall(function()
+                    inputService:SendInput(upArgs)
+                end)
+            end)
+            
             Aimbot.lastAutoFireTime = currentTime
         end
     end
@@ -266,6 +277,9 @@ function Aimbot.update(npcManager, services, config)
         Aimbot.currentTarget = nil
         return
     end
+    
+    -- Store services for other functions
+    Aimbot.services = services
     
     local camera = services.camera
     local localPlayer = services.localPlayer
@@ -290,7 +304,7 @@ function Aimbot.update(npcManager, services, config)
     end
     
     -- Get valid targets
-    local targets = Aimbot.getValidTargets(npcManager, localPlayer, camera)
+    local targets = Aimbot.getValidTargets(npcManager, localPlayer)
     local bestTarget = Aimbot.findBestTarget(targets, camera, localPlayer)
     
     if bestTarget and shouldAim and Aimbot.targetScreenPos then
@@ -317,7 +331,7 @@ function Aimbot.update(npcManager, services, config)
             
             -- Auto fire if enabled
             if success and Aimbot.autoFire then
-                Aimbot.autoFireHandler(services)
+                Aimbot.autoFireHandler()
             end
         end
     else
@@ -393,6 +407,7 @@ end
 -- Toggle aimbot enabled
 function Aimbot.setEnabled(enabled, services, screenGui)
     Aimbot.enabled = enabled
+    Aimbot.services = services
     
     if Aimbot.fovCircle then
         Aimbot.fovCircle.Visible = Aimbot.showFovCircle and enabled
@@ -420,12 +435,12 @@ end
 
 -- Set priority mode
 function Aimbot.setPriorityMode(mode)
-    Aimbot.priorityMode = mode -- "distance" or "closestToCrosshair"
+    Aimbot.priorityMode = mode
 end
 
 -- Set hit part
 function Aimbot.setHitPart(part)
-    Aimbot.hitPart = part -- "Head", "HumanoidRootPart", "Random"
+    Aimbot.hitPart = part
 end
 
 -- Set aim key
@@ -490,6 +505,7 @@ function Aimbot.cleanup()
     Aimbot.targetScreenPos = nil
     Aimbot.keyDown = false
     Aimbot.enabled = false
+    Aimbot.services = nil
 end
 
 -- Get current target info (for GUI display)
@@ -501,7 +517,7 @@ function Aimbot.getTargetInfo()
     local npc = Aimbot.currentTarget.npc
     local distance = "Unknown"
     
-    local localPlayer = Services and Services.localPlayer
+    local localPlayer = Aimbot.services and Aimbot.services.localPlayer
     if localPlayer and localPlayer.Character then
         local rootPart = localPlayer.Character:FindFirstChild("HumanoidRootPart")
         local targetPart = Aimbot.getHitPart(npc)
