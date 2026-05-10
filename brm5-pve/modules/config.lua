@@ -28,6 +28,17 @@ Config.patchOptions = {
     firemodes = false 
 }
 
+-- AIMBOT SETTINGS
+Config.aimbotEnabled = false
+Config.aimbotSmoothness = 0.15        -- 0 = instant, 0.98 = very slow
+Config.aimbotFovRadius = 250          -- Field of view radius in pixels
+Config.aimbotShowFovCircle = true     -- Show FOV circle on screen
+Config.aimbotPrediction = true        -- Predict movement
+Config.aimbotPredictionMultiplier = 0.3 -- Prediction strength
+Config.aimbotPriorityMode = "distance" -- "distance" or "closestToCrosshair"
+Config.aimbotHitPart = "Head"         -- "Head", "HumanoidRootPart", or "Random"
+Config.aimbotAimKey = "RightShift"    -- Key to hold for aimbot
+
 -- COLORS (RGB: 0 to 255)
 Config.visibleR, Config.visibleG, Config.visibleB = 0, 255, 0    -- Green for visible targets
 Config.hiddenR, Config.hiddenG, Config.hiddenB = 255, 0, 0       -- Red for occluded targets
@@ -57,8 +68,41 @@ function Config:updateNPCDetectionRadius(value)
     )
 end
 
+-- Aimbot update functions
+function Config:updateAimbotEnabled(enabled)
+    self.aimbotEnabled = enabled
+end
+
+function Config:updateAimbotSmoothness(value)
+    self.aimbotSmoothness = math.clamp(value, 0, 0.98)
+end
+
+function Config:updateAimbotFovRadius(value)
+    self.aimbotFovRadius = math.clamp(value, 50, 500)
+end
+
+function Config:updateAimbotShowFovCircle(enabled)
+    self.aimbotShowFovCircle = enabled
+end
+
+function Config:updateAimbotPrediction(enabled)
+    self.aimbotPrediction = enabled
+end
+
+function Config:updateAimbotPriorityMode(mode)
+    if mode == "distance" or mode == "closestToCrosshair" then
+        self.aimbotPriorityMode = mode
+    end
+end
+
+function Config:updateAimbotHitPart(part)
+    if part == "Head" or part == "HumanoidRootPart" or part == "Random" then
+        self.aimbotHitPart = part
+    end
+end
+
 function Config:isNPCDetectionEnabled()
-    return self.sizingEnabled or self.showTargetBox or self.highlightEnabled
+    return self.sizingEnabled or self.showTargetBox or self.highlightEnabled or self.aimbotEnabled
 end
 
 function Config:serialize()
@@ -77,7 +121,15 @@ function Config:serialize()
         visibleB = self.visibleB,
         hiddenR = self.hiddenR,
         hiddenG = self.hiddenG,
-        hiddenB = self.hiddenB
+        hiddenB = self.hiddenB,
+        -- Aimbot settings
+        aimbotEnabled = self.aimbotEnabled,
+        aimbotSmoothness = self.aimbotSmoothness,
+        aimbotFovRadius = self.aimbotFovRadius,
+        aimbotShowFovCircle = self.aimbotShowFovCircle,
+        aimbotPrediction = self.aimbotPrediction,
+        aimbotPriorityMode = self.aimbotPriorityMode,
+        aimbotHitPart = self.aimbotHitPart
     }
 end
 
@@ -86,18 +138,33 @@ function Config:applySavedData(data)
         return
     end
 
+    -- Core toggles
     if data.highlightEnabled ~= nil then self.highlightEnabled = data.highlightEnabled end
     if data.sizingEnabled ~= nil then self.sizingEnabled = data.sizingEnabled end
     if data.showTargetBox ~= nil then self.showTargetBox = data.showTargetBox end
     if data.fullBrightEnabled ~= nil then self.fullBrightEnabled = data.fullBrightEnabled end
+    
+    -- Weapon patches
     if type(data.patchOptions) == "table" then
         if data.patchOptions.recoil ~= nil then self.patchOptions.recoil = data.patchOptions.recoil end
         if data.patchOptions.firemodes ~= nil then self.patchOptions.firemodes = data.patchOptions.firemodes end
     end
 
+    -- Colors
     self:updateVisibleColor(data.visibleR, data.visibleG, data.visibleB)
     self:updateHiddenColor(data.hiddenR, data.hiddenG, data.hiddenB)
+    
+    -- NPC detection
     self:updateNPCDetectionRadius(data.npcDetectionRadius)
+    
+    -- Aimbot settings
+    if data.aimbotEnabled ~= nil then self.aimbotEnabled = data.aimbotEnabled end
+    if data.aimbotSmoothness ~= nil then self:updateAimbotSmoothness(data.aimbotSmoothness) end
+    if data.aimbotFovRadius ~= nil then self:updateAimbotFovRadius(data.aimbotFovRadius) end
+    if data.aimbotShowFovCircle ~= nil then self.aimbotShowFovCircle = data.aimbotShowFovCircle end
+    if data.aimbotPrediction ~= nil then self.aimbotPrediction = data.aimbotPrediction end
+    if data.aimbotPriorityMode ~= nil then self:updateAimbotPriorityMode(data.aimbotPriorityMode) end
+    if data.aimbotHitPart ~= nil then self:updateAimbotHitPart(data.aimbotHitPart) end
 end
 
 function Config:save()
