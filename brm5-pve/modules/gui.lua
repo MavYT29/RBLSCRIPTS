@@ -139,7 +139,7 @@ local function createSlider(parent, label, initialValue, maxValue, callback, lay
 end
 
 -- Initialize the GUI
-function GUI:init(services, config, callbacks)
+function GUI:init(services, config, callbacks, aimbot)
     local localPlayer = services.localPlayer
     local playerMouse = localPlayer:GetMouse()
     
@@ -203,8 +203,8 @@ function GUI:init(services, config, callbacks)
 
     -- Main Window Frame
     local main = Instance.new("Frame", self.screenGui)
-    main.Size = UDim2.new(0, 500, 0, 350)
-    main.Position = UDim2.new(0.5, -250, 0.5, -175)
+    main.Size = UDim2.new(0, 500, 0, 450)
+    main.Position = UDim2.new(0.5, -250, 0.5, -225)
     main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
     main.BorderSizePixel = 0
     main.Active = true
@@ -289,6 +289,7 @@ function GUI:init(services, config, callbacks)
 
     -- Create Tabs
     local tabCombat = createTab(container)
+    local tabAimbot = createTab(container)
     local tabVisuals = createTab(container)
     local tabWeapons = createTab(container)
     local tabColors = createTab(container)
@@ -297,6 +298,7 @@ function GUI:init(services, config, callbacks)
 
     self.tabs = {
         combat = tabCombat,
+        aimbot = tabAimbot,
         visuals = tabVisuals,
         weapons = tabWeapons,
         colors = tabColors,
@@ -336,14 +338,197 @@ function GUI:init(services, config, callbacks)
     end
 
     addTabBtn("Combat", tabCombat)
+    addTabBtn("Aimbot", tabAimbot)
     addTabBtn("Visuals", tabVisuals)
     addTabBtn("Weapons", tabWeapons)
     addTabBtn("Colors", tabColors)
-    addTabBtn("Credits and Help", tabCredits)
+    addTabBtn("Credits", tabCredits)
 
     -- COMBAT TAB
-    createButton(tabCombat, "Silent 🎯", config.sizingEnabled, callbacks.onSizingToggle)
+    createButton(tabCombat, "Silent Aim 🎯", config.sizingEnabled, callbacks.onSizingToggle)
     createButton(tabCombat, "Show HitBox", config.showTargetBox, callbacks.onShowTargetBoxToggle)
+
+    -- AIMBOT TAB
+    -- Aimbot main toggle
+    createButton(tabAimbot, "Aimbot 🔫", aimbot and aimbot.enabled or false, function(enabled)
+        if callbacks.onAimbotToggle then
+            callbacks.onAimbotToggle(enabled)
+        end
+    end)
+
+    -- Smoothness slider (0-100 scale converted to 0-0.98)
+    createSlider(
+        tabAimbot,
+        "Smoothness",
+        aimbot and math.floor(aimbot.smoothness * 100) or 15,
+        100,
+        function(value)
+            if callbacks.onSmoothnessChange then
+                callbacks.onSmoothnessChange(value / 100)
+            end
+        end,
+        nil,
+        services
+    )
+
+    -- FOV Radius slider
+    createSlider(
+        tabAimbot,
+        "FOV Radius",
+        aimbot and aimbot.fovRadius or 250,
+        500,
+        function(value)
+            if callbacks.onFovRadiusChange then
+                callbacks.onFovRadiusChange(value)
+            end
+        end,
+        nil,
+        services
+    )
+
+    -- Priority Mode buttons
+    local priorityGroup = Instance.new("Frame", tabAimbot)
+    priorityGroup.Size = UDim2.new(1, -10, 0, 70)
+    priorityGroup.BackgroundTransparency = 1
+
+    local priorityLabel = Instance.new("TextLabel", priorityGroup)
+    priorityLabel.Text = "Target Priority"
+    priorityLabel.Size = UDim2.new(1, 0, 0, 20)
+    priorityLabel.TextColor3 = Color3.new(1, 1, 1)
+    priorityLabel.BackgroundTransparency = 1
+    priorityLabel.TextXAlignment = "Left"
+
+    local priorityDistance = Instance.new("TextButton", priorityGroup)
+    priorityDistance.Size = UDim2.new(0.5, -5, 0, 30)
+    priorityDistance.Position = UDim2.new(0, 0, 0, 25)
+    priorityDistance.Text = "Distance"
+    priorityDistance.BackgroundColor3 = (aimbot and aimbot.priorityMode == "distance") and Color3.fromRGB(85, 170, 255) or Color3.fromRGB(35, 35, 35)
+    priorityDistance.TextColor3 = (aimbot and aimbot.priorityMode == "distance") and Color3.new(0, 0, 0) or Color3.new(1, 1, 1)
+    Instance.new("UICorner", priorityDistance)
+
+    local priorityAngle = Instance.new("TextButton", priorityGroup)
+    priorityAngle.Size = UDim2.new(0.5, -5, 0, 30)
+    priorityAngle.Position = UDim2.new(0.5, 5, 0, 25)
+    priorityAngle.Text = "Closest to Crosshair"
+    priorityAngle.BackgroundColor3 = (aimbot and aimbot.priorityMode == "closestToCrosshair") and Color3.fromRGB(85, 170, 255) or Color3.fromRGB(35, 35, 35)
+    priorityAngle.TextColor3 = (aimbot and aimbot.priorityMode == "closestToCrosshair") and Color3.new(0, 0, 0) or Color3.new(1, 1, 1)
+    Instance.new("UICorner", priorityAngle)
+
+    priorityDistance.MouseButton1Click:Connect(function()
+        priorityDistance.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
+        priorityDistance.TextColor3 = Color3.new(0, 0, 0)
+        priorityAngle.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        priorityAngle.TextColor3 = Color3.new(1, 1, 1)
+        if callbacks.onPriorityModeChange then
+            callbacks.onPriorityModeChange("distance")
+        end
+    end)
+
+    priorityAngle.MouseButton1Click:Connect(function()
+        priorityAngle.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
+        priorityAngle.TextColor3 = Color3.new(0, 0, 0)
+        priorityDistance.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        priorityDistance.TextColor3 = Color3.new(1, 1, 1)
+        if callbacks.onPriorityModeChange then
+            callbacks.onPriorityModeChange("closestToCrosshair")
+        end
+    end)
+
+    -- Hit Part selection
+    local hitPartGroup = Instance.new("Frame", tabAimbot)
+    hitPartGroup.Size = UDim2.new(1, -10, 0, 70)
+    hitPartGroup.BackgroundTransparency = 1
+
+    local hitPartLabel = Instance.new("TextLabel", hitPartGroup)
+    hitPartLabel.Text = "Aim Target"
+    hitPartLabel.Size = UDim2.new(1, 0, 0, 20)
+    hitPartLabel.TextColor3 = Color3.new(1, 1, 1)
+    hitPartLabel.BackgroundTransparency = 1
+    hitPartLabel.TextXAlignment = "Left"
+
+    local hitPartHead = Instance.new("TextButton", hitPartGroup)
+    hitPartHead.Size = UDim2.new(0.33, -4, 0, 30)
+    hitPartHead.Position = UDim2.new(0, 0, 0, 25)
+    hitPartHead.Text = "Head"
+    hitPartHead.BackgroundColor3 = (aimbot and aimbot.hitPart == "Head") and Color3.fromRGB(85, 170, 255) or Color3.fromRGB(35, 35, 35)
+    hitPartHead.TextColor3 = (aimbot and aimbot.hitPart == "Head") and Color3.new(0, 0, 0) or Color3.new(1, 1, 1)
+    Instance.new("UICorner", hitPartHead)
+
+    local hitPartRoot = Instance.new("TextButton", hitPartGroup)
+    hitPartRoot.Size = UDim2.new(0.34, -4, 0, 30)
+    hitPartRoot.Position = UDim2.new(0.33, 4, 0, 25)
+    hitPartRoot.Text = "Body"
+    hitPartRoot.BackgroundColor3 = (aimbot and aimbot.hitPart == "HumanoidRootPart") and Color3.fromRGB(85, 170, 255) or Color3.fromRGB(35, 35, 35)
+    hitPartRoot.TextColor3 = (aimbot and aimbot.hitPart == "HumanoidRootPart") and Color3.new(0, 0, 0) or Color3.new(1, 1, 1)
+    Instance.new("UICorner", hitPartRoot)
+
+    local hitPartRandom = Instance.new("TextButton", hitPartGroup)
+    hitPartRandom.Size = UDim2.new(0.33, -4, 0, 30)
+    hitPartRandom.Position = UDim2.new(0.67, 4, 0, 25)
+    hitPartRandom.Text = "Random"
+    hitPartRandom.BackgroundColor3 = (aimbot and aimbot.hitPart == "Random") and Color3.fromRGB(85, 170, 255) or Color3.fromRGB(35, 35, 35)
+    hitPartRandom.TextColor3 = (aimbot and aimbot.hitPart == "Random") and Color3.new(0, 0, 0) or Color3.new(1, 1, 1)
+    Instance.new("UICorner", hitPartRandom)
+
+    hitPartHead.MouseButton1Click:Connect(function()
+        hitPartHead.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
+        hitPartHead.TextColor3 = Color3.new(0, 0, 0)
+        hitPartRoot.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        hitPartRoot.TextColor3 = Color3.new(1, 1, 1)
+        hitPartRandom.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        hitPartRandom.TextColor3 = Color3.new(1, 1, 1)
+        if callbacks.onHitPartChange then
+            callbacks.onHitPartChange("Head")
+        end
+    end)
+
+    hitPartRoot.MouseButton1Click:Connect(function()
+        hitPartRoot.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
+        hitPartRoot.TextColor3 = Color3.new(0, 0, 0)
+        hitPartHead.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        hitPartHead.TextColor3 = Color3.new(1, 1, 1)
+        hitPartRandom.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        hitPartRandom.TextColor3 = Color3.new(1, 1, 1)
+        if callbacks.onHitPartChange then
+            callbacks.onHitPartChange("HumanoidRootPart")
+        end
+    end)
+
+    hitPartRandom.MouseButton1Click:Connect(function()
+        hitPartRandom.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
+        hitPartRandom.TextColor3 = Color3.new(0, 0, 0)
+        hitPartHead.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        hitPartHead.TextColor3 = Color3.new(1, 1, 1)
+        hitPartRoot.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        hitPartRoot.TextColor3 = Color3.new(1, 1, 1)
+        if callbacks.onHitPartChange then
+            callbacks.onHitPartChange("Random")
+        end
+    end)
+
+    -- Prediction toggle
+    createButton(tabAimbot, "Movement Prediction", aimbot and aimbot.prediction or false, function(enabled)
+        if callbacks.onPredictionToggle then
+            callbacks.onPredictionToggle(enabled)
+        end
+    end)
+
+    -- Show FOV toggle
+    createButton(tabAimbot, "Show FOV Circle", aimbot and aimbot.showFovCircle or true, function(enabled)
+        if callbacks.onShowFovToggle then
+            callbacks.onShowFovToggle(enabled)
+        end
+    end)
+
+    -- Keybind info label
+    local keybindInfo = Instance.new("TextLabel", tabAimbot)
+    keybindInfo.Size = UDim2.new(1, -10, 0, 50)
+    keybindInfo.Text = "Hold Right Shift to aim\n(Can be changed in aimbot.lua)"
+    keybindInfo.TextColor3 = Color3.fromRGB(150, 150, 150)
+    keybindInfo.Font = "Gotham"
+    keybindInfo.TextSize = 11
+    keybindInfo.TextWrapped = true
+    keybindInfo.BackgroundTransparency = 1
 
     -- VISUALS TAB
     createButton(tabVisuals, "Walls 🔎", config.highlightEnabled, callbacks.onHighlightsToggle)
@@ -443,6 +628,7 @@ function GUI:init(services, config, callbacks)
 
     addCredit("Credits and Help", "GothamBold", 28)
     addCredit("Made by: HiIxX0Dexter0XxIiH", "GothamBold", 24)
+    addCredit("Aimbot Module: Camera-based aiming", "Gotham", 18)
     addLinkButton("GitHub", "https://github.com/HiIxX0Dexter0XxIiH/Roblox-Dexter-Scripts", Color3.fromRGB(45, 95, 160))
     addLinkButton("Reddit", "https://www.reddit.com/r/BRM5Scripts/", Color3.fromRGB(185, 75, 45))
 
@@ -493,4 +679,3 @@ function GUI:destroy()
 end
 
 return GUI
-
