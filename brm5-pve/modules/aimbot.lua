@@ -1,11 +1,12 @@
 -- Aimbot Module
 -- Mouse-based aiming system that locks onto enemies
+-- Fixed to work with NPC Manager
 
 local Aimbot = {}
 
 -- Settings
 Aimbot.enabled = false
-Aimbot.smoothness = 0.15          -- 0 = instant, 1 = very slow (default: 0.15)
+Aimbot.smoothness = 0.15          -- 0 = instant, 1 = very slow
 Aimbot.fovRadius = 250            -- Field of view radius in pixels
 Aimbot.showFovCircle = true       -- Show FOV circle on screen
 Aimbot.prediction = true          -- Predict movement
@@ -14,13 +15,15 @@ Aimbot.priorityMode = "distance"  -- "distance" or "closestToCrosshair"
 Aimbot.teamCheck = true           -- Only target enemies
 Aimbot.hitPart = "Head"           -- "Head", "HumanoidRootPart", or "Random"
 Aimbot.aimKey = Enum.UserInputType.MouseButton2  -- Right Mouse Button to aim
-Aimbot.aimMethod = "mouse"        -- "mouse" or "mousescript" (MouseScript is faster for some executors)      -- "mouse" or "mousescript" (MouseScript is faster for some executors)
+Aimbot.aimMethod = "mouse"        -- "mouse" or "mousescript"
 Aimbot.autoFire = false           -- Automatically fire when locked on target
 Aimbot.autoFireDelay = 0.05       -- Delay between shots in seconds
+Aimbot.bulletSpeed = 2500         -- Bullet speed for prediction
 
 -- Internal variables
 Aimbot.fovCircle = nil
 Aimbot.currentTarget = nil
+Aimbot.currentTargetPart = nil
 Aimbot.keyDown = false
 Aimbot.connections = {}
 Aimbot.screenGui = nil
@@ -58,11 +61,22 @@ function Aimbot.isValidTarget(npc, targetPart, localPlayer)
         return false
     end
     
-    -- Team check (assuming NPCs have team color or name pattern)
+    -- Team check - skip if target is same team as player
     if Aimbot.teamCheck then
+        local playerTeam = localPlayer.Team
+        local npcTeam = npc:FindFirstChild("Team") or npc:FindFirstChild("team")
+        
+        -- Check for friendly NPCs by name or tag
         local npcName = npc.Name:lower()
-        if npcName:find("civilian") or npcName:find("friendly") then
+        if npcName:find("civilian") or npcName:find("friendly") or npcName:find("ally") then
             return false
+        end
+        
+        -- Check if NPC has team color that matches player
+        if playerTeam and npcTeam then
+            if npcTeam.Value == playerTeam.Name or npcTeam.Value == playerTeam then
+                return false
+            end
         end
     end
     
@@ -80,7 +94,8 @@ function Aimbot.getValidTargets(npcManager, localPlayer)
             table.insert(targets, {
                 npc = npc,
                 part = targetPart,
-                data = data
+                data = data,
+                root = data.root or targetPart
             })
         end
     end
@@ -115,21 +130,33 @@ function Aimbot.getDistanceToTarget(localPlayer, targetPosition)
     return (targetPosition - rootPart.Position).Magnitude
 end
 
+-- Get target velocity for prediction
+function Aimbot.getTargetVelocity(targetPart)
+    local humanoid = targetPart.Parent:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        return humanoid:GetVelocity()
+    end
+    
+    -- Check for root part velocity
+    local root = targetPart.Parent:FindFirstChild("HumanoidRootPart") or targetPart.Parent:FindFirstChild("Root")
+    if root and root.AssemblyLinearVelocity then
+        return root.AssemblyLinearVelocity
+    end
+    
+    return Vector3.new(0, 0, 0)
+end
+
 -- Predict target movement
 function Aimbot.predictPosition(targetPart, bulletSpeed)
     if not Aimbot.prediction then
         return targetPart.Position
     end
     
-    local targetVelocity = Vector3.new(0, 0, 0)
-    local humanoid = targetPart.Parent:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        targetVelocity = humanoid:GetVelocity()
-    end
+    local targetVelocity = Aimbot.getTargetVelocity(targetPart)
     
     local camera = Aimbot.services and Aimbot.services.camera or workspace.CurrentCamera
     local distance = camera and (camera.CFrame.Position - targetPart.Position).Magnitude or 100
-    local travelTime = distance / (bulletSpeed or 2500) -- Default bullet speed
+    local travelTime = distance / (bulletSpeed or Aimbot.bulletSpeed)
     
     return targetPart.Position + (targetVelocity * travelTime * Aimbot.predictionMultiplier)
 end
@@ -140,14 +167,29 @@ function Aimbot.getTargetScreenPosition(camera, target)
         return nil, false
     end
     
-    local aimPos = Aimbot.predictPosition(target.part, 2500)
+    local aimPos = Aimbot.predictPosition(target.part, Aimbot.bulletSpeed)
     return Aimbot.worldToScreen(camera, aimPos)
+end
+
+-- Calculate distance from crosshair to target (in pixels)
+function Aimbot.getScreenDistanceToCenter(camera, targetPosition)
+    local screenPos, onScreen = Aimbot.worldToScreen(camera, targetPosition)
+    if not onScreen then
+        return math.huge
+    end
+    
+    local centerX = camera.ViewportSize.X / 2
+    local centerY = camera.ViewportSize.Y / 2
+    local dx = screenPos.X - centerX
+    local dy = screenPos.Y - centerY
+    
+    return math.sqrt(dx * dx + dy * dy)
 end
 
 -- Find best target based on priority mode
 function Aimbot.findBestTarget(targets, camera, localPlayer)
     if #targets == 0 then
-        return nil
+        return nil, nil
     end
     
     local bestTarget = nil
@@ -156,35 +198,40 @@ function Aimbot.findBestTarget(targets, camera, localPlayer)
     for _, target in ipairs(targets) do
         local targetPart = target.part
         if targetPart and targetPart.Parent then
+            -- Check if target is on screen
             local screenPos, onScreen = Aimbot.worldToScreen(camera, targetPart.Position)
-            local angle = Aimbot.getAngleToTarget(camera, targetPart.Position)
-            local distance = Aimbot.getDistanceToTarget(localPlayer, targetPart.Position)
             
-            -- Check if within FOV
-            local fovCondition = Aimbot.fovRadius >= 999 or angle <= math.rad(Aimbot.fovRadius)
-            
-            if onScreen and fovCondition then
-                if Aimbot.priorityMode == "distance" then
-                    if distance < bestScore then
-                        bestScore = distance
-                        bestTarget = target
-                        Aimbot.targetScreenPos = screenPos
-                    end
-                else -- closestToCrosshair (angle based)
-                    if angle < bestScore then
-                        bestScore = angle
-                        bestTarget = target
-                        Aimbot.targetScreenPos = screenPos
+            if onScreen then
+                local angle = Aimbot.getAngleToTarget(camera, targetPart.Position)
+                local distance = Aimbot.getDistanceToTarget(localPlayer, targetPart.Position)
+                local screenDistance = Aimbot.getScreenDistanceToCenter(camera, targetPart.Position)
+                
+                -- Check if within FOV radius (in screen pixels)
+                local fovCondition = screenDistance <= Aimbot.fovRadius
+                
+                if fovCondition then
+                    if Aimbot.priorityMode == "distance" then
+                        if distance < bestScore then
+                            bestScore = distance
+                            bestTarget = target
+                            Aimbot.targetScreenPos = screenPos
+                        end
+                    else -- closestToCrosshair (screen distance based)
+                        if screenDistance < bestScore then
+                            bestScore = screenDistance
+                            bestTarget = target
+                            Aimbot.targetScreenPos = screenPos
+                        end
                     end
                 end
             end
         end
     end
     
-    return bestTarget
+    return bestTarget, bestTarget and bestTarget.part or nil
 end
 
--- Move mouse to target position (MouseScript method - faster)
+-- Move mouse to target position (MouseScript method)
 function Aimbot.moveMouseMouseScript(targetX, targetY, smoothness)
     if type(mousemoveabs) ~= "function" then
         return false
@@ -194,7 +241,7 @@ function Aimbot.moveMouseMouseScript(targetX, targetY, smoothness)
     local deltaX = targetX - currentX
     local deltaY = targetY - currentY
     
-    if smoothness > 0 then
+    if smoothness > 0 and smoothness < 1 then
         local step = 1 - smoothness
         local newX = currentX + (deltaX * step)
         local newY = currentY + (deltaY * step)
@@ -216,13 +263,13 @@ function Aimbot.moveMouseStandard(targetX, targetY, smoothness, userInputService
     local deltaX = targetX - currentPos.X
     local deltaY = targetY - currentPos.Y
     
-    if smoothness > 0 then
+    if smoothness > 0 and smoothness < 1 then
         local step = 1 - smoothness
         deltaX = deltaX * step
         deltaY = deltaY * step
     end
     
-    if deltaX ~= 0 or deltaY ~= 0 then
+    if math.abs(deltaX) > 0.5 or math.abs(deltaY) > 0.5 then
         if type(mousemoverel) == "function" then
             mousemoverel(deltaX, deltaY)
             return true
@@ -230,6 +277,34 @@ function Aimbot.moveMouseStandard(targetX, targetY, smoothness, userInputService
     end
     
     return false
+end
+
+-- Simulate mouse click for auto fire
+function Aimbot.simulateMouseClick()
+    if not Aimbot.services or not Aimbot.services.UserInputService then
+        return
+    end
+    
+    local inputService = Aimbot.services.UserInputService
+    
+    -- Send mouse button down
+    local downArgs = {
+        UserInputType = Enum.UserInputType.MouseButton1
+    }
+    pcall(function()
+        inputService:SendInput(downArgs)
+    end)
+    
+    -- Small delay then send up
+    task.delay(0.01, function()
+        local upArgs = {
+            UserInputType = Enum.UserInputType.MouseButton1,
+            UserInputState = Enum.UserInputState.End
+        }
+        pcall(function()
+            inputService:SendInput(upArgs)
+        end)
+    end)
 end
 
 -- Auto fire when aiming at target
@@ -240,41 +315,32 @@ function Aimbot.autoFireHandler()
     
     local currentTime = tick()
     if currentTime - Aimbot.lastAutoFireTime >= Aimbot.autoFireDelay then
-        -- Simulate mouse button click using UserInputService
-        if Aimbot.services and Aimbot.services.UserInputService then
-            local inputService = Aimbot.services.UserInputService
-            
-            -- Send mouse button down
-            local downArgs = {
-                UserInputType = Enum.UserInputType.MouseButton1
-            }
-            pcall(function()
-                inputService:SendInput(downArgs)
-            end)
-            
-            -- Small delay then send up
-            task.delay(0.01, function()
-                local upArgs = {
-                    UserInputType = Enum.UserInputType.MouseButton1,
-                    UserInputState = Enum.UserInputState.End
-                }
-                pcall(function()
-                    inputService:SendInput(upArgs)
-                end)
-            end)
-            
-            Aimbot.lastAutoFireTime = currentTime
-        end
+        Aimbot.simulateMouseClick()
+        Aimbot.lastAutoFireTime = currentTime
     end
 end
 
--- Main aimbot update (mouse-based)
-function Aimbot.update(npcManager, services, config)
+-- Draw FOV circle
+function Aimbot.drawFovCircle()
+    if not Aimbot.fovCircle then return end
+    
+    local camera = Aimbot.services and Aimbot.services.camera or workspace.CurrentCamera
+    if not camera then return end
+    
+    local centerX = camera.ViewportSize.X / 2
+    local centerY = camera.ViewportSize.Y / 2
+    
+    Aimbot.fovCircle.Position = UDim2.fromOffset(centerX - Aimbot.fovRadius, centerY - Aimbot.fovRadius)
+end
+
+-- Main aimbot update (uses NPC Manager)
+function Aimbot.update(npcManager, services)
     if not Aimbot.enabled then
         if Aimbot.fovCircle then
             Aimbot.fovCircle.Visible = false
         end
         Aimbot.currentTarget = nil
+        Aimbot.currentTargetPart = nil
         return
     end
     
@@ -289,40 +355,43 @@ function Aimbot.update(npcManager, services, config)
         return
     end
     
+    -- Update FOV circle position and visibility
+    if Aimbot.fovCircle then
+        Aimbot.fovCircle.Visible = Aimbot.showFovCircle
+        Aimbot.drawFovCircle()
+    end
+    
     -- Check if aimbot should be active (keybind or always on)
     local shouldAim = Aimbot.keyDown or (Aimbot.aimKey == nil)
     
-    -- Update FOV circle visibility
-    if Aimbot.fovCircle then
-        Aimbot.fovCircle.Visible = Aimbot.showFovCircle and Aimbot.enabled
-        if Aimbot.fovCircle.Visible then
-            Aimbot.fovCircle.Position = UDim2.fromOffset(
-                camera.ViewportSize.X / 2 - Aimbot.fovRadius,
-                camera.ViewportSize.Y / 2 - Aimbot.fovRadius
-            )
-        end
+    if not shouldAim then
+        return
     end
     
-    -- Get valid targets
+    -- Get valid targets from NPC Manager
     local targets = Aimbot.getValidTargets(npcManager, localPlayer)
-    local bestTarget = Aimbot.findBestTarget(targets, camera, localPlayer)
     
-    if bestTarget and shouldAim and Aimbot.targetScreenPos then
+    -- Find best target
+    local bestTarget, bestPart = Aimbot.findBestTarget(targets, camera, localPlayer)
+    
+    if bestTarget and bestPart and Aimbot.targetScreenPos then
         Aimbot.currentTarget = bestTarget
+        Aimbot.currentTargetPart = bestPart
         
         local targetPos = Aimbot.targetScreenPos
         local centerX = camera.ViewportSize.X / 2
         local centerY = camera.ViewportSize.Y / 2
         
-        -- Check if target is within FOV circle (pixel distance)
+        -- Calculate distance from center
         local dx = targetPos.X - centerX
         local dy = targetPos.Y - centerY
         local distanceFromCenter = math.sqrt(dx * dx + dy * dy)
         
+        -- Only aim if within FOV
         if distanceFromCenter <= Aimbot.fovRadius then
-            -- Move mouse to target
             local success = false
             
+            -- Move mouse to target
             if Aimbot.aimMethod == "mousescript" and type(mousemoveabs) == "function" then
                 success = Aimbot.moveMouseMouseScript(targetPos.X, targetPos.Y, Aimbot.smoothness)
             else
@@ -336,6 +405,7 @@ function Aimbot.update(npcManager, services, config)
         end
     else
         Aimbot.currentTarget = nil
+        Aimbot.currentTargetPart = nil
         Aimbot.targetScreenPos = nil
     end
 end
@@ -347,18 +417,20 @@ function Aimbot.createFovCircle(services, screenGui)
     end
     
     local camera = services.camera
+    if not camera then return nil end
+    
+    local centerX = camera.ViewportSize.X / 2
+    local centerY = camera.ViewportSize.Y / 2
+    
     local fovCircle = Instance.new("Frame", screenGui)
     fovCircle.Name = "AimbotFOV"
     fovCircle.Size = UDim2.fromOffset(Aimbot.fovRadius * 2, Aimbot.fovRadius * 2)
-    fovCircle.Position = UDim2.fromOffset(
-        camera.ViewportSize.X / 2 - Aimbot.fovRadius,
-        camera.ViewportSize.Y / 2 - Aimbot.fovRadius
-    )
+    fovCircle.Position = UDim2.fromOffset(centerX - Aimbot.fovRadius, centerY - Aimbot.fovRadius)
     fovCircle.BackgroundTransparency = 1
-    fovCircle.BackgroundColor3 = Color3.new(1, 1, 1)
     fovCircle.Visible = Aimbot.showFovCircle and Aimbot.enabled
     fovCircle.ZIndex = 1000
     
+    -- Circle outline
     local circle = Instance.new("Frame", fovCircle)
     circle.Size = UDim2.new(1, 0, 1, 0)
     circle.BackgroundTransparency = 1
@@ -372,7 +444,7 @@ function Aimbot.createFovCircle(services, screenGui)
     local uiCorner = Instance.new("UICorner", circle)
     uiCorner.CornerRadius = UDim.new(1, 0)
     
-    -- Add center dot
+    -- Center dot
     local dot = Instance.new("Frame", fovCircle)
     dot.Size = UDim2.fromOffset(4, 4)
     dot.Position = UDim2.new(0.5, -2, 0.5, -2)
@@ -384,23 +456,12 @@ function Aimbot.createFovCircle(services, screenGui)
     return fovCircle
 end
 
--- Update FOV circle position (called on viewport resize)
-function Aimbot.updateFovCirclePosition(services)
-    if not Aimbot.fovCircle then return end
-    
-    local camera = services.camera
-    Aimbot.fovCircle.Position = UDim2.fromOffset(
-        camera.ViewportSize.X / 2 - Aimbot.fovRadius,
-        camera.ViewportSize.Y / 2 - Aimbot.fovRadius
-    )
-end
-
 -- Update FOV circle radius
 function Aimbot.setFovRadius(radius, services)
     Aimbot.fovRadius = math.clamp(radius, 50, 500)
     if Aimbot.fovCircle then
         Aimbot.fovCircle.Size = UDim2.fromOffset(Aimbot.fovRadius * 2, Aimbot.fovRadius * 2)
-        Aimbot.updateFovCirclePosition(services)
+        Aimbot.drawFovCircle()
     end
 end
 
@@ -419,6 +480,7 @@ function Aimbot.setEnabled(enabled, services, screenGui)
     
     if not enabled then
         Aimbot.currentTarget = nil
+        Aimbot.currentTargetPart = nil
         Aimbot.targetScreenPos = nil
     end
 end
@@ -468,6 +530,10 @@ function Aimbot.setupKeybinds(services)
     end
     Aimbot.connections = {}
     
+    if not services or not services.UserInputService then
+        return
+    end
+    
     -- InputBegan connection
     local inputBeganConn = services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
@@ -480,9 +546,12 @@ function Aimbot.setupKeybinds(services)
     
     -- InputEnded connection
     local inputEndedConn = services.UserInputService.InputEnded:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
         if Aimbot.aimKey and input.KeyCode == Aimbot.aimKey then
             Aimbot.keyDown = false
             Aimbot.currentTarget = nil
+            Aimbot.currentTargetPart = nil
             Aimbot.targetScreenPos = nil
         end
     end)
@@ -502,10 +571,12 @@ function Aimbot.cleanup()
     end
     
     Aimbot.currentTarget = nil
+    Aimbot.currentTargetPart = nil
     Aimbot.targetScreenPos = nil
     Aimbot.keyDown = false
     Aimbot.enabled = false
     Aimbot.services = nil
+    Aimbot.lastAutoFireTime = 0
 end
 
 -- Get current target info (for GUI display)
