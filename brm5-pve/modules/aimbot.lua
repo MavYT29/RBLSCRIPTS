@@ -13,8 +13,8 @@ Aimbot.predictionMultiplier = 0.3 -- Prediction strength
 Aimbot.priorityMode = "distance"  -- "distance" or "closestToCrosshair"
 Aimbot.teamCheck = true           -- Only target enemies
 Aimbot.hitPart = "Head"           -- "Head", "HumanoidRootPart", or "Random"
-Aimbot.aimKey = Enum.KeyCode.RightShift  -- Key to hold for aimbot (nil = always on)
-Aimbot.aimMethod = "mouse"        -- "mouse" or "mousescript" (MouseScript is faster for some executors)
+Aimbot.aimKey = Enum.UserInputType.MouseButton2  -- Right Mouse Button to aim
+Aimbot.aimMethod = "mouse"        -- "mouse" or "mousescript" (MouseScript is faster for some executors)      -- "mouse" or "mousescript" (MouseScript is faster for some executors)
 Aimbot.autoFire = false           -- Automatically fire when locked on target
 Aimbot.autoFireDelay = 0.05       -- Delay between shots in seconds
 
