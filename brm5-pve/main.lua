@@ -365,10 +365,10 @@ table.insert(runtimeConnections, Services.UserInputService.InputBegan:Connect(fu
 end))
 
 -- FIXED: Viewport resize handler for FOV circle
--- Use camera's GetPropertyChangedSignal for ViewportSize, not UserInputService
-local camera = Services.Workspace.CurrentCamera
-if camera then
-    local viewportChangedConn = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+-- Use camera's GetPropertyChangedSignal for ViewportSize, NOT UserInputService
+local currentCamera = Services.Workspace.CurrentCamera
+if currentCamera then
+    local viewportChangedConn = currentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
         if Aimbot and Aimbot.fovCircle then
             Aimbot.updateFovCirclePosition(Services)
         end
