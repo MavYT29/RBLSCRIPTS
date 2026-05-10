@@ -66,13 +66,13 @@ Config:load()
 Lighting:storeOriginalSettings(Services.Lighting)
 
 -- Apply saved aimbot settings to Aimbot module
-Aimbot.enabled = Config.aimbotEnabled
-Aimbot.smoothness = Config.aimbotSmoothness
-Aimbot.fovRadius = Config.aimbotFovRadius
-Aimbot.showFovCircle = Config.aimbotShowFovCircle
-Aimbot.prediction = Config.aimbotPrediction
-Aimbot.priorityMode = Config.aimbotPriorityMode
-Aimbot.hitPart = Config.aimbotHitPart
+if Config.aimbotEnabled ~= nil then Aimbot.enabled = Config.aimbotEnabled end
+if Config.aimbotSmoothness ~= nil then Aimbot.smoothness = Config.aimbotSmoothness end
+if Config.aimbotFovRadius ~= nil then Aimbot.fovRadius = Config.aimbotFovRadius end
+if Config.aimbotShowFovCircle ~= nil then Aimbot.showFovCircle = Config.aimbotShowFovCircle end
+if Config.aimbotPrediction ~= nil then Aimbot.prediction = Config.aimbotPrediction end
+if Config.aimbotPriorityMode ~= nil then Aimbot.priorityMode = Config.aimbotPriorityMode end
+if Config.aimbotHitPart ~= nil then Aimbot.hitPart = Config.aimbotHitPart end
 
 local runtimeConnections = {}
 
@@ -364,12 +364,17 @@ table.insert(runtimeConnections, Services.UserInputService.InputBegan:Connect(fu
     end
 end))
 
--- Viewport resize handler for FOV circle
-table.insert(runtimeConnections, Services.UserInputService.ViewportSizeChanged:Connect(function()
-    if Aimbot and Aimbot.fovCircle then
-        Aimbot.updateFovCirclePosition(Services)
-    end
-end))
+-- FIXED: Viewport resize handler for FOV circle
+-- Use camera's GetPropertyChangedSignal for ViewportSize, not UserInputService
+local camera = Services.Workspace.CurrentCamera
+if camera then
+    local viewportChangedConn = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        if Aimbot and Aimbot.fovCircle then
+            Aimbot.updateFovCirclePosition(Services)
+        end
+    end)
+    table.insert(runtimeConnections, viewportChangedConn)
+end
 
 print("BRM5 PVE Script v7.0 Loaded Successfully!")
 print("Press Insert to toggle GUI")
