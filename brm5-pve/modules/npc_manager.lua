@@ -1,5 +1,6 @@
 -- NPC Manager Module
 -- Handles detection and tracking of enemy NPCs
+-- Enhanced with aimbot-specific functions
 
 local NPCManager = {}
 local Players = game:GetService("Players")
@@ -14,6 +15,107 @@ function NPCManager.getRootPart(model)
     return model:FindFirstChild("Root") or 
            model:FindFirstChild("HumanoidRootPart") or 
            model:FindFirstChild("UpperTorso")
+end
+
+-- Get humanoid from NPC
+function NPCManager.getHumanoid(model)
+    return model:FindFirstChildOfClass("Humanoid")
+end
+
+-- Check if NPC is alive
+function NPCManager.isAlive(npc)
+    local humanoid = NPCManager.getHumanoid(npc)
+    return humanoid and humanoid.Health > 0
+end
+
+-- Get NPC position (for aimbot)
+function NPCManager.getNPCPosition(npc, partType)
+    if partType == "Head" then
+        local head = npc:FindFirstChild("Head")
+        if head then return head.Position end
+    elseif partType == "Root" then
+        local root = NPCManager.getRootPart(npc)
+        if root then return root.Position end
+    end
+    
+    -- Fallback to any visible part
+    local parts = {"Head", "HumanoidRootPart", "UpperTorso", "Root"}
+    for _, partName in ipairs(parts) do
+        local part = npc:FindFirstChild(partName)
+        if part then return part.Position end
+    end
+    
+    return npc:GetPivot().Position
+end
+
+-- Get NPC velocity for prediction
+function NPCManager.getNPCVelocity(npc)
+    local humanoid = NPCManager.getHumanoid(npc)
+    if humanoid then
+        return humanoid:GetVelocity()
+    end
+    
+    local root = NPCManager.getRootPart(npc)
+    if root and root.AssemblyLinearVelocity then
+        return root.AssemblyLinearVelocity
+    end
+    
+    return Vector3.new(0, 0, 0)
+end
+
+-- Get all valid hit parts from an NPC (for aimbot targeting)
+function NPCManager.getHitParts(npc)
+    local hitParts = {}
+    local partNames = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Root"}
+    
+    for _, partName in ipairs(partNames) do
+        local part = npc:FindFirstChild(partName)
+        if part and part:IsA("BasePart") then
+            table.insert(hitParts, part)
+        end
+    end
+    
+    return hitParts
+end
+
+-- Check if NPC is visible from camera (line of sight)
+function NPCManager.isVisible(npc, camera, partType)
+    local part = partType == "Head" and npc:FindFirstChild("Head") or NPCManager.getRootPart(npc)
+    if not part then return false end
+    
+    local origin = camera.CFrame.Position
+    local direction = (part.Position - origin).Unit
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {localPlayer.Character, npc}
+    
+    local result = workspace:Raycast(origin, direction * (part.Position - origin).Magnitude, raycastParams)
+    return result == nil
+end
+
+-- Get distance from player to NPC
+function NPCManager.getDistanceToPlayer(npc)
+    local character = localPlayer.Character
+    if not character then return math.huge end
+    
+    local playerRoot = NPCManager.getRootPart(character)
+    local npcRoot = NPCManager.getRootPart(npc)
+    
+    if playerRoot and npcRoot then
+        return (playerRoot.Position - npcRoot.Position).Magnitude
+    end
+    
+    return math.huge
+end
+
+-- Get angle between player's look direction and NPC
+function NPCManager.getAngleToNPC(camera, npc)
+    local npcPos = NPCManager.getNPCPosition(npc, "Head")
+    local cameraPos = camera.CFrame.Position
+    local targetDir = (npcPos - cameraPos).Unit
+    local lookDir = camera.CFrame.LookVector
+    
+    return math.acos(math.clamp(lookDir:Dot(targetDir), -1, 1))
 end
 
 function NPCManager:getDetectionOrigin(workspace)
@@ -93,7 +195,18 @@ function NPCManager:addNPCModel(npc, container, markerModule, config)
         return 
     end
     
-    self.activeNPCs[npc] = { head = head, root = root, character = npc, container = container }
+    -- Store additional data for aimbot
+    local humanoid = self.getHumanoid(npc)
+    
+    self.activeNPCs[npc] = { 
+        head = head, 
+        root = root, 
+        character = npc, 
+        container = container,
+        humanoid = humanoid,
+        lastPosition = root.Position,
+        lastUpdate = tick()
+    }
     
     -- Create marker box if visibility markers are enabled
     if markerModule and markerModule.isEnabled() then
@@ -155,9 +268,74 @@ function NPCManager:removeNPC(model)
     self.activeNPCs[model] = nil
 end
 
--- Gets all active NPCs
+-- Gets all active NPCs for aimbot
 function NPCManager:getActiveNPCs()
     return self.activeNPCs
+end
+
+-- Get active NPCs as a simplified array (for aimbot iteration)
+function NPCManager:getActiveNPCsArray()
+    local npcs = {}
+    for npc, data in pairs(self.activeNPCs) do
+        table.insert(npcs, {
+            npc = npc,
+            data = data,
+            head = data.head,
+            root = data.root,
+            humanoid = data.humanoid
+        })
+    end
+    return npcs
+end
+
+-- Get nearest NPC to player
+function NPCManager:getNearestNPC()
+    local nearest = nil
+    local nearestDistance = math.huge
+    
+    for npc, data in pairs(self.activeNPCs) do
+        local distance = self.getDistanceToPlayer(npc)
+        if distance < nearestDistance then
+            nearestDistance = distance
+            nearest = {npc = npc, data = data, distance = distance}
+        end
+    end
+    
+    return nearest
+end
+
+-- Get NPCs within a certain distance
+function NPCManager:getNPCsInRange(maxDistance)
+    local inRange = {}
+    
+    for npc, data in pairs(self.activeNPCs) do
+        local distance = self.getDistanceToPlayer(npc)
+        if distance <= maxDistance then
+            table.insert(inRange, {npc = npc, data = data, distance = distance})
+        end
+    end
+    
+    return inRange
+end
+
+-- Update NPC data (call this in a loop for smooth tracking)
+function NPCManager:updateNPCData()
+    for npc, data in pairs(self.activeNPCs) do
+        if data.root and data.root.Parent then
+            -- Store previous position for velocity calculation
+            data.lastPosition = data.root.Position
+            data.lastUpdate = tick()
+            
+            -- Update references in case parts changed
+            local newHead = npc:FindFirstChild("Head")
+            local newRoot = self.getRootPart(npc)
+            local newHumanoid = self.getHumanoid(npc)
+            
+            if newHead then data.head = newHead end
+            if newRoot then data.root = newRoot end
+            if newHumanoid then data.humanoid = newHumanoid end
+        end
+    end
 end
 
 function NPCManager:removeNPCModel(model, markerModule, targetSizing)
